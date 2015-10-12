@@ -14,7 +14,7 @@ This was originally published at http://weblogs.asp.net/bleroy/archive/2010/03/1
 .NET is now more than eight years old, and some of its APIs got old with more
 grace than others.
 System.IO in particular has always been a little awkward.
-It’s mostly static method calls (Path.*, Directory.*, etc.) and some stateful
+Itâ€™s mostly static method calls (Path.\*, Directory.\*, etc.) and some stateful
 classes (DirectoryInfo, FileInfo).
 In these APIs, paths are plain strings.
 
@@ -27,17 +27,17 @@ HTML DOM.
 You know? jQuery.
 
 Knowing all that, every time I need to use the stuff in System.IO, I cringe.
-So I thought I’d just build a more modern wrapper around it.
+So I thought Iâ€™d just build a more modern wrapper around it.
 I used a fluent API based on an essentially immutable Path type and an
 enumeration of such path objects.
 To achieve the fluent style, a healthy dose of lambda expressions is being used
 to act on the objects.
 
-Without further ado, here’s an example of what you can do with the new API.
-In that example, I’m using a Media Center extension that wants all video files
+Without further ado, hereâ€™s an example of what you can do with the new API.
+In that example, Iâ€™m using a Media Center extension that wants all video files
 to be in their own folder.
 For that, I need a small tool that creates directories for each video file and
-moves the files in there. Here’s the code for it:
+moves the files in there. Hereâ€™s the code for it:
 
 ```csharp
 Path.Get(args.Length != 0 ? args[0] : ".")
@@ -69,7 +69,7 @@ filename without extension.
 
 ![Moving files around with FluentPath](./doc/media/FluentPath1.png)
 
-The new fluent path library covers a fair part of what’s in System.IO in a
+The new fluent path library covers a fair part of whatâ€™s in System.IO in a
 single, convenient API.
-Check it out, I hope you’ll enjoy it.
+Check it out, I hope youâ€™ll enjoy it.
 Suggestions and contributions are more than welcome.
