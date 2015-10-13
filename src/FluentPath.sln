@@ -1,6 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+# Visual Studio 14
+VisualStudioVersion = 14.0.23107.0
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fluent.IO", "FluentPath\Fluent.IO.csproj", "{098E43F5-97C4-419E-B0BE-DCE7F568054B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentPathTest", "FluentPathTest\FluentPathTest.csproj", "{E649482F-8CA3-4689-9919-96A14CA688E8}"
@@ -12,6 +14,12 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fluent.Zip", "Fluent.Zip\Fluent.Zip.csproj", "{FA94EDC0-E87E-45A6-803A-EB4169B11F23}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentZipSpec", "FluentZipSpec\FluentZipSpec.csproj", "{DD26B416-D53B-4411-B827-08B87C900102}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{EACC1611-2FA9-4AF3-88A3-52A7D3396712}"
+	ProjectSection(SolutionItems) = preProject
+		..\license.txt = ..\license.txt
+		..\README.md = ..\README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
