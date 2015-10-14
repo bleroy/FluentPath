@@ -17,6 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentZipSpec", "FluentZipS
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{EACC1611-2FA9-4AF3-88A3-52A7D3396712}"
 	ProjectSection(SolutionItems) = preProject
+		..\FluentPath.nuspec = ..\FluentPath.nuspec
 		..\license.txt = ..\license.txt
 		..\README.md = ..\README.md
 	EndProjectSection

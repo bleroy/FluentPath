@@ -2,12 +2,12 @@
 <package>
   <metadata>
     <id>FluentPath</id>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <authors>Bertrand Le Roy</authors>
     <description>FluentPath is a fluent wrapper API around System.IO.</description>
     <language>en-US</language>
-	<projectUrl>http://fluentpath.codeplex.com/</projectUrl>
-	<licenseUrl>http://fluentpath.codeplex.com/license</licenseUrl>
+	<projectUrl>https://github.com/bleroy/FluentPath</projectUrl>
+	<licenseUrl>https://github.com/bleroy/FluentPath/blob/master/license.txt</licenseUrl>
 	<requireLicenseAcceptance>true</requireLicenseAcceptance>
   </metadata>
   <files>
