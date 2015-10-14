@@ -10,12 +10,12 @@ Getting started
 ---------------
 
 In order to run the tests for this package, you'll need to have
-[SpecFlow](http://www.specflow.org/getting-started/) installed.
+[SpecFlow][] installed.
 
 Using FluentPath
 ----------------
 
-This was originally published at http://weblogs.asp.net/bleroy/archive/2010/03/10/fluentpath-a-fluent-wrapper-around-system-io.aspx.
+This was originally published [here][blogpost].
 
 .NET is now more than eight years old, and some of its APIs got old with more
 grace than others.
@@ -79,3 +79,6 @@ The new fluent path library covers a fair part of what’s in System.IO in a
 single, convenient API.
 Check it out, I hope you’ll enjoy it.
 Suggestions and contributions are more than welcome.
+
+[specflow]: http://www.specflow.org/getting-started/
+[blogpost]: http://weblogs.asp.net/bleroy/archive/2010/03/10/fluentpath-a-fluent-wrapper-around-system-io.aspx
