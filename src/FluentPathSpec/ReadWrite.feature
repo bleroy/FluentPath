@@ -77,15 +77,15 @@ Scenario: Appending to a file with encoding UTF-16 appends new contents
 	And I append " Déjà Vu" to bar\dejavu.txt using UTF-16 encoding
 	Then the text content of bar\dejavu.txt as read using UTF-16 encoding should be "Déjà Vu Déjà Vu"
 
-Scenario: Encrypting and decrypting a file
-	Given a clean test directory
-	When I encrypt bar\baz.txt
-	And I copy bar\baz.txt to bar\encrypted.txt
-	And I decrypt bar\baz.txt
-	Then the text content of bar\baz.txt should be "bar baz"
-	And the text content of bar\encrypted.txt should be "bar baz"
-    And bar\baz.txt should not be encrypted
-	And bar\encrypted.txt should be encrypted
+#Scenario: Encrypting and decrypting a file
+#	Given a clean test directory
+#	When I encrypt bar\baz.txt
+#	And I copy bar\baz.txt to bar\encrypted.txt
+#	And I decrypt bar\baz.txt
+#	Then the text content of bar\baz.txt should be "bar baz"
+#	And the text content of bar\encrypted.txt should be "bar baz"
+#    And bar\baz.txt should not be encrypted
+#	And bar\encrypted.txt should be encrypted
 
 Scenario: Setting attributes
 	Given a clean test directory

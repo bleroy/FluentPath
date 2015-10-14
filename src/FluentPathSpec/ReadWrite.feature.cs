@@ -322,33 +322,6 @@ this.ScenarioSetup(scenarioInfo);
         }
         
         [NUnit.Framework.TestAttribute()]
-        [NUnit.Framework.DescriptionAttribute("Encrypting and decrypting a file")]
-        public virtual void EncryptingAndDecryptingAFile()
-        {
-            TechTalk.SpecFlow.ScenarioInfo scenarioInfo = new TechTalk.SpecFlow.ScenarioInfo("Encrypting and decrypting a file", ((string[])(null)));
-#line 80
-this.ScenarioSetup(scenarioInfo);
-#line 81
- testRunner.Given("a clean test directory", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "Given ");
-#line 82
- testRunner.When("I encrypt bar\\baz.txt", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "When ");
-#line 83
- testRunner.And("I copy bar\\baz.txt to bar\\encrypted.txt", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "And ");
-#line 84
- testRunner.And("I decrypt bar\\baz.txt", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "And ");
-#line 85
- testRunner.Then("the text content of bar\\baz.txt should be \"bar baz\"", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "Then ");
-#line 86
- testRunner.And("the text content of bar\\encrypted.txt should be \"bar baz\"", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "And ");
-#line 87
-    testRunner.And("bar\\baz.txt should not be encrypted", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "And ");
-#line 88
- testRunner.And("bar\\encrypted.txt should be encrypted", ((string)(null)), ((TechTalk.SpecFlow.Table)(null)), "And ");
-#line hidden
-            this.ScenarioCleanup();
-        }
-        
-        [NUnit.Framework.TestAttribute()]
         [NUnit.Framework.DescriptionAttribute("Setting attributes")]
         public virtual void SettingAttributes()
         {
