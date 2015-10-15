@@ -70,9 +70,9 @@ namespace Fluent.IO {
         /// <param name="paths">The list of path strings in the set.</param>
         /// <param name="previousPaths">The list of path strings in the previous set.</param>
         protected PathBase(IEnumerable<string> paths, T previousPaths) {
-            if (paths == null) throw new ArgumentNullException("paths");
+            if (paths == null) throw new ArgumentNullException(nameof(paths));
             _paths = paths
-                .Where(s => !String.IsNullOrWhiteSpace(s))
+                .Where(s => !string.IsNullOrWhiteSpace(s))
                 .Select(s => s[s.Length - 1] == System.IO.Path.DirectorySeparatorChar &&
                              System.IO.Path.GetPathRoot(s) != s ?
                     s.Substring(0, s.Length - 1) : s)
@@ -80,46 +80,29 @@ namespace Fluent.IO {
             _previousPaths = previousPaths;
         }
 
-        protected static T Create(IEnumerable<string> paths, T previousPaths) {
-            return new T {_paths = paths, _previousPaths = previousPaths};
-        }
+        protected static T Create(IEnumerable<string> paths, T previousPaths)
+            => new T {_paths = paths, _previousPaths = previousPaths};
 
-        private static T Create(IEnumerable<string> paths, PathBase<T> previousPaths) {
-            return Create(paths, (T) previousPaths);
-        }
+        private static T Create(IEnumerable<string> paths, PathBase<T> previousPaths)
+            => Create(paths, (T) previousPaths);
 
-        protected static T Create(IEnumerable<T> paths) {
-            return Create(paths.SelectMany(p => p._paths), null);
-        }
+        protected static T Create(IEnumerable<T> paths) => Create(paths.SelectMany(p => p._paths), null);
 
-        protected static T Create(IEnumerable<string> paths) {
-            return Create(paths, null);
-        }
+        protected static T Create(IEnumerable<string> paths) => Create(paths, null);
 
-        protected static T Create(params string[] paths) {
-            return Create((IEnumerable<string>)paths);
+        protected static T Create(params string[] paths) => Create((IEnumerable<string>)paths);
 
-        }
+        protected static T Create() => Create(new string[] { });
 
-        protected static T Create() {
-            return Create(new string[] { });
-        }
+        protected static T Create(params T[] paths) => Create((IEnumerable<T>)paths);
 
-        protected static T Create(params T[] paths) {
-            return Create((IEnumerable<T>)paths);
-        }
+        protected static T Create(string path) => Create(path, (T) null);
 
-        protected static T Create(string path) {
-            return Create(path, (T) null);
-        }
+        protected static T Create(string path, T previousPaths)
+            => new T {_paths = new[] {path}, _previousPaths = previousPaths};
 
-        protected static T Create(string path, T previousPaths) {
-            return new T {_paths = new[] {path}, _previousPaths = previousPaths};
-        }
-
-        private static T Create(string path, PathBase<T> previousPaths) {
-            return Create(path, (T)previousPaths);
-        }
+        private static T Create(string path, PathBase<T> previousPaths)
+            => Create(path, (T)previousPaths);
 
         /// <summary>
         /// The current path for the application.
@@ -129,11 +112,7 @@ namespace Fluent.IO {
             set { Directory.SetCurrentDirectory(value.FirstPath()); }
         }
 
-        public static T Root {
-            get {
-                return Create(System.IO.Path.GetPathRoot(Current.ToString()));
-            }
-        }
+        public static T Root => Create(System.IO.Path.GetPathRoot(Current.ToString()));
 
         /// <summary>
         /// Creates a directory in the file system.
@@ -153,18 +132,14 @@ namespace Fluent.IO {
         /// <returns>The path object.</returns>
         public static T Get(params string[] pathTokens) {
             if (pathTokens.Length == 0) {
-                throw new ArgumentException("At least one token needs to be specified.", "pathTokens");
+                throw new ArgumentException("At least one token needs to be specified.", nameof(pathTokens));
             }
             return Create(System.IO.Path.Combine(pathTokens));
         }
 
-        public static explicit operator string(PathBase<T> path) {
-            return path.FirstPath();
-        }
+        public static explicit operator string(PathBase<T> path) => path.FirstPath();
 
-        public static explicit operator PathBase<T>(string path) {
-            return new PathBase<T>(path);
-        }
+        public static explicit operator PathBase<T>(string path) => new PathBase<T>(path);
 
         public static bool operator ==(PathBase<T> path1, PathBase<T> path2) {
             if (ReferenceEquals(path1, path2)) return true;
@@ -172,9 +147,7 @@ namespace Fluent.IO {
             return path1.IsSameAs(path2);
         }
 
-        public static bool operator !=(PathBase<T> path1, PathBase<T> path2) {
-            return !(path1 == path2);
-        }
+        public static bool operator !=(PathBase<T> path1, PathBase<T> path2) => !(path1 == path2);
 
         // Overrides
         public override bool Equals(object obj) {
@@ -199,45 +172,33 @@ namespace Fluent.IO {
             return !dict.ContainsValue(false);
         }
 
-        public override int GetHashCode() {
-            return _paths.Aggregate(17, (h, p) => 23 * h + (p ?? "").GetHashCode());
-        }
+        public override int GetHashCode() => _paths.Aggregate(17, (h, p) => 23 * h + (p ?? "").GetHashCode());
 
         /// <summary>
         /// The name of the directory for the first path in the collection.
         /// This is the string representation of the parent directory path.
         /// </summary>
-        public string DirectoryName {
-            get { return System.IO.Path.GetDirectoryName(FirstPath()); }
-        }
+        public string DirectoryName => System.IO.Path.GetDirectoryName(FirstPath());
 
         /// <summary>
         /// The extension for the first path in the collection, including the ".".
         /// </summary>
-        public string Extension {
-            get { return System.IO.Path.GetExtension(FirstPath()); }
-        }
+        public string Extension => System.IO.Path.GetExtension(FirstPath());
 
         /// <summary>
         /// The filename or folder name for the first path in the collection, including the extension.
         /// </summary>
-        public string FileName {
-            get { return System.IO.Path.GetFileName(FirstPath()); }
-        }
+        public string FileName => System.IO.Path.GetFileName(FirstPath());
 
         /// <summary>
         /// The filename or folder name for the first path in the collection, without the extension.
         /// </summary>
-        public string FileNameWithoutExtension {
-            get { return System.IO.Path.GetFileNameWithoutExtension(FirstPath()); }
-        }
+        public string FileNameWithoutExtension => System.IO.Path.GetFileNameWithoutExtension(FirstPath());
 
         /// <summary>
         /// The fully qualified path string for the first path in the collection.
         /// </summary>
-        public string FullPath {
-            get { return System.IO.Path.GetFullPath(FirstPath()); }
-        }
+        public string FullPath => System.IO.Path.GetFullPath(FirstPath());
 
         /// <summary>
         /// The fully qualified path strings for all the paths in the collection.
@@ -255,72 +216,51 @@ namespace Fluent.IO {
         /// <summary>
         /// True all the paths in the collection have an extension.
         /// </summary>
-        public bool HasExtension {
-            get { return _paths.All(System.IO.Path.HasExtension); }
-        }
+        public bool HasExtension => _paths.All(System.IO.Path.HasExtension);
 
         /// <summary>
         /// True if each path in the set is the path of
         /// a directory in the file system.
         /// </summary>
-        public bool IsDirectory {
-            get { return _paths.All(Directory.Exists); }
-        }
+        public bool IsDirectory => _paths.All(Directory.Exists);
 
         /// <summary>
         /// True if all the files in the collection are encrypted on disc.
         /// </summary>
-        public bool IsEncrypted {
-            get {
-                return _paths.All(p =>
-                    Directory.Exists(p) ||
-                    (File.GetAttributes(p) & FileAttributes.Encrypted) != 0);
-            }
-        }
+        public bool IsEncrypted
+            => _paths.All(p =>
+                Directory.Exists(p) ||
+                (File.GetAttributes(p) & FileAttributes.Encrypted) != 0);
 
         /// <summary>
         /// True if all the paths in the collection are fully-qualified.
         /// </summary>
-        public bool IsRooted {
-            get { return _paths.All(System.IO.Path.IsPathRooted); }
-        }
+        public bool IsRooted => _paths.All(System.IO.Path.IsPathRooted);
 
         /// <summary>
         /// The parent paths for the paths in the collection.
         /// </summary>
-        public T Parent() {
-            return First().Up();
-        }
+        public T Parent() => First().Up();
 
         /// <summary>
         /// The parent paths for the paths in the collection.
         /// </summary>
-        public T Parents() {
-            return Up();
-        }
+        public T Parents() => Up();
 
         /// <summary>
         /// The root directory of the first path of the collection,
         /// such as "C:\".
         /// </summary>
-        public string PathRoot {
-            get { return System.IO.Path.GetPathRoot(FirstPath()); }
-        }
+        public string PathRoot => System.IO.Path.GetPathRoot(FirstPath());
 
         /// <summary>
         /// The previous set, from which the current one was created.
         /// </summary>
-        public T Previous() {
-            return _previousPaths;
-        }
+        public T Previous() => _previousPaths;
 
-        public IEnumerator<T> GetEnumerator() {
-            return _paths.Select(path => Create(path, this)).GetEnumerator();
-        }
+        public IEnumerator<T> GetEnumerator() => _paths.Select(path => Create(path, this)).GetEnumerator();
 
-        IEnumerator IEnumerable.GetEnumerator() {
-            return GetEnumerator();
-        }
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
         /// <summary>
         /// Changes the path on each path in the set.
@@ -328,9 +268,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="newExtension">The new extension.</param>
         /// <returns>The set</returns>
-        public T ChangeExtension(string newExtension) {
-            return ChangeExtension(p => newExtension);
-        }
+        public T ChangeExtension(string newExtension) => ChangeExtension(p => newExtension);
 
         /// <summary>
         /// Changes the path on each path in the set.
@@ -368,9 +306,8 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="relativePath">The path to combine. Only the first path is used.</param>
         /// <returns>The combined paths.</returns>
-        public T Combine<TOther>(PathBase<TOther> relativePath) where TOther: PathBase<TOther>, new() {
-            return Combine(relativePath.Tokens);
-        }
+        public T Combine<TOther>(PathBase<TOther> relativePath) where TOther: PathBase<TOther>, new()
+            => Combine(relativePath.Tokens);
 
         /// <summary>
         /// Combines each path in the set with the specified tokens.
@@ -400,10 +337,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="destination">The destination path.</param>
         /// <returns>The destination path.</returns>
-        public T Copy(T destination) {
-
-            return Copy(p => destination, Overwrite.Never, false);
-        }
+        public T Copy(T destination) => Copy(p => destination, Overwrite.Never, false);
 
         /// <summary>
         /// Copies the file or folder for this path to another location. The copy is not recursive.
@@ -411,10 +345,7 @@ namespace Fluent.IO {
         /// <param name="destination">The destination path.</param>
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <returns>The destination path.</returns>
-        public T Copy(T destination, Overwrite overwrite) {
-
-            return Copy(p => destination, overwrite, false);
-        }
+        public T Copy(T destination, Overwrite overwrite) => Copy(p => destination, overwrite, false);
 
         /// <summary>
         /// Copies the file or folder for this path to another location.
@@ -423,10 +354,8 @@ namespace Fluent.IO {
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <param name="recursive">True if the copy should be deep and include subdirectories recursively. Default is false.</param>
         /// <returns>The source path.</returns>
-        public T Copy(T destination, Overwrite overwrite, bool recursive) {
-
-            return Copy(p => destination, overwrite, recursive);
-        }
+        public T Copy(T destination, Overwrite overwrite, bool recursive)
+            => Copy(p => destination, overwrite, recursive);
 
         /// <summary>
         /// Copies the file or folder for this path to another location.
@@ -435,10 +364,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="destination">The destination path string.</param>
         /// <returns>The destination path.</returns>
-        public T Copy(string destination) {
-
-            return Copy(p => Create(destination, this), Overwrite.Never, false);
-        }
+        public T Copy(string destination) => Copy(p => Create(destination, this), Overwrite.Never, false);
 
         /// <summary>
         /// Copies the file or folder for this path to another location.
@@ -447,9 +373,8 @@ namespace Fluent.IO {
         /// <param name="destination">The destination path string.</param>
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <returns>The destination path.</returns>
-        public T Copy(string destination, Overwrite overwrite) {
-            return Copy(p => Create(destination, this), overwrite, false);
-        }
+        public T Copy(string destination, Overwrite overwrite)
+            => Copy(p => Create(destination, this), overwrite, false);
 
         /// <summary>
         /// Copies the file or folder for this path to another location.
@@ -458,9 +383,8 @@ namespace Fluent.IO {
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <param name="recursive">True if the copy should be deep and include subdirectories recursively. Default is false.</param>
         /// <returns>The destination path.</returns>
-        public T Copy(string destination, Overwrite overwrite, bool recursive) {
-            return Copy(p => Create(destination, this), overwrite, recursive);
-        }
+        public T Copy(string destination, Overwrite overwrite, bool recursive) 
+            => Copy(p => Create(destination, this), overwrite, recursive);
 
         /// <summary>
         /// Does a copy of all files and directories in the set.
@@ -470,9 +394,7 @@ namespace Fluent.IO {
         /// If the function returns a null path, the file or directory is not copied.
         /// </param>
         /// <returns>The set</returns>
-        public T Copy(Func<T, T> pathMapping) {
-            return Copy(pathMapping, Overwrite.Never, false);
-        }
+        public T Copy(Func<T, T> pathMapping) => Copy(pathMapping, Overwrite.Never, false);
 
         /// <summary>
         /// Does a copy of all files and directories in the set.
@@ -511,15 +433,15 @@ namespace Fluent.IO {
 
         private static void CopyFile(string srcPath, string destPath, Overwrite overwrite) {
             if ((overwrite == Overwrite.Throw) && File.Exists(destPath)) {
-                throw new InvalidOperationException(String.Format("File {0} already exists.", destPath));
+                throw new InvalidOperationException(string.Format("File {0} already exists.", destPath));
             }
             if (((overwrite != Overwrite.Always) &&
-                 ((overwrite != Overwrite.Never) || File.Exists(destPath))) &&
+                ((overwrite != Overwrite.Never) || File.Exists(destPath))) &&
                 ((overwrite != Overwrite.IfNewer) || (File.Exists(destPath) &&
-                                                      (File.GetLastWriteTime(srcPath) <= File.GetLastWriteTime(destPath))))) return;
+                (File.GetLastWriteTime(srcPath) <= File.GetLastWriteTime(destPath))))) return;
             var dir = System.IO.Path.GetDirectoryName(destPath);
             if (dir == null) {
-                throw new InvalidOperationException(String.Format("Directory {0} not found.", destPath));
+                throw new InvalidOperationException(string.Format("Directory {0} not found.", destPath));
             }
             if (!Directory.Exists(dir)) {
                 Directory.CreateDirectory(dir);
@@ -560,9 +482,8 @@ namespace Fluent.IO {
         /// If the function returns null, no directory is created.
         /// </param>
         /// <returns>The set</returns>
-        public T CreateDirectories(Func<T, string> directoryNameGenerator) {
-            return CreateDirectories(p => Create(directoryNameGenerator(p)));
-        }
+        public T CreateDirectories(Func<T, string> directoryNameGenerator) 
+            => CreateDirectories(p => Create(directoryNameGenerator(p)));
 
         /// <summary>
         /// Creates subdirectories for each directory.
@@ -590,30 +511,24 @@ namespace Fluent.IO {
         /// Creates directories for each path in the set.
         /// </summary>
         /// <returns>The set</returns>
-        public T CreateDirectories() {
-            return CreateDirectories(p => p);
-        }
+        public T CreateDirectories() => CreateDirectories(p => p);
 
         /// <summary>
         /// Creates subdirectories for each directory.
         /// </summary>
         /// <param name="directoryName">The name of the new directory.</param>
         /// <returns>The set</returns>
-        public T CreateDirectories(string directoryName) {
-            return CreateDirectories(p => p.Combine(directoryName));
-        }
+        public T CreateDirectories(string directoryName)
+            => CreateDirectories(p => p.Combine(directoryName));
 
         /// <summary>
         /// Creates a directory for the first path in the set.
         /// </summary>
         /// <returns>The created path</returns>
-        public T CreateDirectory() {
-            return First().CreateDirectories();
-        }
+        public T CreateDirectory() => First().CreateDirectories();
 
-        public T CreateSubDirectory(string directoryName) {
-            return CreateSubDirectories(p => directoryName);
-        }
+        public T CreateSubDirectory(string directoryName)
+            => CreateSubDirectories(p => directoryName);
 
         public T CreateSubDirectories(Func<T, string> directoryNameGenerator) {
             var combined = Combine(directoryNameGenerator);
@@ -631,9 +546,8 @@ namespace Fluent.IO {
         /// <param name="fileName">The name of the file.</param>
         /// <param name="fileContent">The content of the file.</param>
         /// <returns>A set with the created file.</returns>
-        public T CreateFile(string fileName, string fileContent) {
-            return First().CreateFiles(p => Create(fileName, this), p => fileContent);
-        }
+        public T CreateFile(string fileName, string fileContent) 
+            => First().CreateFiles(p => Create(fileName, this), p => fileContent);
 
         /// <summary>
         /// Creates a file under the first path in the set.
@@ -642,9 +556,8 @@ namespace Fluent.IO {
         /// <param name="fileContent">The content of the file.</param>
         /// <param name="encoding">The encoding to use.</param>
         /// <returns>A set with the created file.</returns>
-        public T CreateFile(string fileName, string fileContent, Encoding encoding) {
-            return First().CreateFiles(p => Create(fileName, this), p => fileContent, encoding);
-        }
+        public T CreateFile(string fileName, string fileContent, Encoding encoding) 
+            => First().CreateFiles(p => Create(fileName, this), p => fileContent, encoding);
 
         /// <summary>
         /// Creates a file under the first path in the set.
@@ -652,9 +565,8 @@ namespace Fluent.IO {
         /// <param name="fileName">The name of the file.</param>
         /// <param name="fileContent">The content of the file.</param>
         /// <returns>A set with the created file.</returns>
-        public T CreateFile(string fileName, byte[] fileContent) {
-            return First().CreateFiles(p => Create(fileName, this), p => fileContent);
-        }
+        public T CreateFile(string fileName, byte[] fileContent) 
+            => First().CreateFiles(p => Create(fileName, this), p => fileContent);
 
         /// <summary>
         /// Creates files under each of the paths in the set.
@@ -736,9 +648,7 @@ namespace Fluent.IO {
         /// Deletes this path from the file system.
         /// </summary>
         /// <returns>The parent path.</returns>
-        public T Delete() {
-            return Delete(false);
-        }
+        public T Delete() => Delete(false);
 
         /// <summary>
         /// Deletes all files and folders in the set, including non-empty directories if recursive is true.
@@ -793,14 +703,13 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="extensions"></param>
         /// <returns></returns>
-        public T WhereExtensionIs(params string[] extensions) {
-            return Where(
+        public T WhereExtensionIs(params string[] extensions) 
+            => Where(
                 p => {
                     var ext = p.Extension;
                     return extensions.Contains(ext) ||
                            (ext.Length > 0 && extensions.Contains(ext.Substring(1)));
                 });
-        }
 
         /// <summary>
         /// Executes an action for each file or folder in the set.
@@ -818,9 +727,7 @@ namespace Fluent.IO {
         /// Gets the subdirectories of folders in the set.
         /// </summary>
         /// <returns>The set of matching subdirectories.</returns>
-        public T Directories() {
-            return Directories(p => true, "*", false);
-        }
+        public T Directories() => Directories(p => true, "*", false);
 
         /// <summary>
         /// Gets all the subdirectories of folders in the set that match the provided pattern and using the provided options.
@@ -828,18 +735,15 @@ namespace Fluent.IO {
         /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
         /// <param name="recursive">True if subdirectories should also be searched recursively. Default is false.</param>
         /// <returns>The set of matching subdirectories.</returns>
-        public T Directories(string searchPattern, bool recursive) {
-            return Directories(p => true, searchPattern, recursive);
-        }
+        public T Directories(string searchPattern, bool recursive) 
+            => Directories(p => true, searchPattern, recursive);
 
         /// <summary>
         /// Creates a set from all the subdirectories that satisfy the specified predicate.
         /// </summary>
         /// <param name="predicate">A function that returns true if the directory should be included.</param>
         /// <returns>The set of directories that satisfy the predicate.</returns>
-        public T Directories(Predicate<T> predicate) {
-            return Directories(predicate, "*", false);
-        }
+        public T Directories(Predicate<T> predicate) => Directories(predicate, "*", false);
 
         /// <summary>
         /// Creates a set from all the subdirectories that satisfy the specified predicate.
@@ -847,9 +751,8 @@ namespace Fluent.IO {
         /// <param name="predicate">A function that returns true if the directory should be included.</param>
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of directories that satisfy the predicate.</returns>
-        public T Directories(Predicate<T> predicate, bool recursive) {
-            return Directories(predicate, "*", recursive);
-        }
+        public T Directories(Predicate<T> predicate, bool recursive) 
+            => Directories(predicate, "*", recursive);
 
         /// <summary>
         /// Creates a set from all the subdirectories that satisfy the specified predicate.
@@ -874,9 +777,7 @@ namespace Fluent.IO {
         /// Gets all the files under the directories of the set.
         /// </summary>
         /// <returns>The set of files.</returns>
-        public T Files() {
-            return Files(p => true, "*", false);
-        }
+        public T Files() => Files(p => true, "*", false);
 
         /// <summary>
         /// Gets all the files under the directories of the set that match the pattern, going recursively into subdirectories if recursive is set to true.
@@ -884,18 +785,14 @@ namespace Fluent.IO {
         /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
         /// <param name="recursive">If true, subdirectories are explored as well. Default is false.</param>
         /// <returns>The set of files that match the pattern.</returns>
-        public T Files(string searchPattern, bool recursive) {
-            return Files(p => true, searchPattern, recursive);
-        }
+        public T Files(string searchPattern, bool recursive) => Files(p => true, searchPattern, recursive);
 
         /// <summary>
         /// Creates a set from all the files under the path that satisfy the specified predicate.
         /// </summary>
         /// <param name="predicate">A function that returns true if the path should be included.</param>
         /// <returns>The set of paths that satisfy the predicate.</returns>
-        public T Files(Predicate<T> predicate) {
-            return Files(predicate, "*", false);
-        }
+        public T Files(Predicate<T> predicate) => Files(predicate, "*", false);
 
         /// <summary>
         /// Creates a set from all the files under the path that satisfy the specified predicate.
@@ -903,9 +800,7 @@ namespace Fluent.IO {
         /// <param name="predicate">A function that returns true if the path should be included.</param>
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of paths that satisfy the predicate.</returns>
-        public T Files(Predicate<T> predicate, bool recursive) {
-            return Files(predicate, "*", recursive);
-        }
+        public T Files(Predicate<T> predicate, bool recursive) => Files(predicate, "*", recursive);
 
         /// <summary>
         /// Creates a set from all the files under the path that satisfy the specified predicate.
@@ -930,9 +825,7 @@ namespace Fluent.IO {
         /// Gets all the files and subdirectories under the directories of the set.
         /// </summary>
         /// <returns>The set of files and folders.</returns>
-        public T FileSystemEntries() {
-            return FileSystemEntries(p => true, "*", false);
-        }
+        public T FileSystemEntries() => FileSystemEntries(p => true, "*", false);
 
         /// <summary>
         /// Gets all the files and subdirectories under the directories of the set that match the pattern, going recursively into subdirectories if recursive is set to true.
@@ -940,18 +833,15 @@ namespace Fluent.IO {
         /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
         /// <param name="recursive">If true, subdirectories are explored as well. Default is false.</param>
         /// <returns>The set of files and folders that match the pattern.</returns>
-        public T FileSystemEntries(string searchPattern, bool recursive) {
-            return FileSystemEntries(p => true, searchPattern, recursive);
-        }
+        public T FileSystemEntries(string searchPattern, bool recursive) 
+            => FileSystemEntries(p => true, searchPattern, recursive);
 
         /// <summary>
         /// Creates a set from all the files and subdirectories under the path that satisfy the specified predicate.
         /// </summary>
         /// <param name="predicate">A function that returns true if the path should be included.</param>
         /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
-        public T FileSystemEntries(Predicate<T> predicate) {
-            return FileSystemEntries(predicate, "*", false);
-        }
+        public T FileSystemEntries(Predicate<T> predicate) => FileSystemEntries(predicate, "*", false);
 
         /// <summary>
         /// Creates a set from all the files and subdirectories under the path that satisfy the specified predicate.
@@ -959,9 +849,8 @@ namespace Fluent.IO {
         /// <param name="predicate">A function that returns true if the path should be included.</param>
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
-        public T FileSystemEntries(Predicate<T> predicate, bool recursive) {
-            return FileSystemEntries(predicate, "*", recursive);
-        }
+        public T FileSystemEntries(Predicate<T> predicate, bool recursive) 
+            => FileSystemEntries(predicate, "*", recursive);
 
         /// <summary>
         /// Creates a set from all the files and subdirectories under the path that satisfy the specified predicate.
@@ -1016,10 +905,8 @@ namespace Fluent.IO {
         /// <param name="regularExpression">The pattern to look for</param>
         /// <param name="action">The action to execute for each match</param>
         /// <returns>The set</returns>
-        public T Grep(string regularExpression, Action<T, Match, string> action) {
-            return Grep(
-                new Regex(regularExpression, RegexOptions.Multiline), action);
-        }
+        public T Grep(string regularExpression, Action<T, Match, string> action) 
+            => Grep(new Regex(regularExpression, RegexOptions.Multiline), action);
 
         /// <summary>
         /// Looks for a specific text pattern in each file in the set.
@@ -1052,27 +939,21 @@ namespace Fluent.IO {
         /// Makes each path relative to the current path.
         /// </summary>
         /// <returns>The set of relative paths.</returns>
-        public T MakeRelative() {
-            return MakeRelativeTo(Current);
-        }
+        public T MakeRelative() => MakeRelativeTo(Current);
 
         /// <summary>
         /// Makes each path relative to the provided one.
         /// </summary>
         /// <param name="parent">The path to which the new one is relative to.</param>
         /// <returns>The set of relative paths.</returns>
-        public T MakeRelativeTo(string parent) {
-            return MakeRelativeTo(Create(parent, this));
-        }
+        public T MakeRelativeTo(string parent) => MakeRelativeTo(Create(parent, this));
 
         /// <summary>
         /// Makes each path relative to the provided one.
         /// </summary>
         /// <param name="parent">The path to which the new one is relative to.</param>
         /// <returns>The set of relative paths.</returns>
-        public T MakeRelativeTo(T parent) {
-            return MakeRelativeTo(p => parent);
-        }
+        public T MakeRelativeTo(T parent) => MakeRelativeTo(p => parent);
 
         /// <summary>
         /// Makes each path relative to the provided one.
@@ -1123,9 +1004,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="destination">The destination path.</param>
         /// <returns>The destination path.</returns>
-        public T Move(string destination) {
-            return Move(p => Create(destination, this), Overwrite.Never);
-        }
+        public T Move(string destination) => Move(p => Create(destination, this), Overwrite.Never);
 
         /// <summary>
         /// Moves the current path in the file system.
@@ -1133,18 +1012,15 @@ namespace Fluent.IO {
         /// <param name="destination">The destination path.</param>
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <returns>The destination path.</returns>
-        public T Move(string destination, Overwrite overwrite) {
-            return Move(p => Create(destination, this), overwrite);
-        }
+        public T Move(string destination, Overwrite overwrite) 
+            => Move(p => Create(destination, this), overwrite);
 
         /// <summary>
         /// Moves all the files and folders in the set to new locations as specified by the mapping function.
         /// </summary>
         /// <param name="pathMapping">The function that maps from the current path to the new one.</param>
         /// <returns>The moved set.</returns>
-        public T Move(Func<T, T> pathMapping) {
-            return Move(pathMapping, Overwrite.Never);
-        }
+        public T Move(Func<T, T> pathMapping) => Move(pathMapping, Overwrite.Never);
 
         /// <summary>
         /// Moves all the files and folders in the set to new locations as specified by the mapping function.
@@ -1180,7 +1056,7 @@ namespace Fluent.IO {
 
         private static bool MoveFile(string srcPath, string destPath, Overwrite overwrite) {
             if ((overwrite == Overwrite.Throw) && File.Exists(destPath)) {
-                throw new InvalidOperationException(String.Format("File {0} already exists.", destPath));
+                throw new InvalidOperationException(string.Format("File {0} already exists.", destPath));
             }
             if ((overwrite != Overwrite.Always) && ((overwrite != Overwrite.Never) || File.Exists(destPath)) &&
                 ((overwrite != Overwrite.IfNewer) ||
@@ -1195,7 +1071,7 @@ namespace Fluent.IO {
         private static void EnsureDirectoryExists(string destPath) {
             var dir = System.IO.Path.GetDirectoryName(destPath);
             if (dir == null) {
-                throw new InvalidOperationException(String.Format("Directory {0} not found.", destPath));
+                throw new InvalidOperationException(string.Format("Directory {0} not found.", destPath));
             }
             if (!Directory.Exists(dir)) {
                 Directory.CreateDirectory(dir);
@@ -1249,18 +1125,16 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="action">The action to perform on the open streams.</param>
         /// <returns>The set</returns>
-        public T Open(Action<FileStream> action) {
-            return Open(action, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        }
+        public T Open(Action<FileStream> action) 
+            => Open(action, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 
         /// <summary>
         /// Opens all the files in the set and hands them to the provided action.
         /// </summary>
         /// <param name="action">The action to perform on the open streams.</param>
         /// <returns>The set</returns>
-        public T Open(Action<FileStream, T> action) {
-            return Open(action, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        }
+        public T Open(Action<FileStream, T> action) 
+            => Open(action, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
 
         /// <summary>
         /// Opens all the files in the set and hands them to the provided action.
@@ -1301,9 +1175,7 @@ namespace Fluent.IO {
         /// </example>
         /// </summary>
         /// <returns>The previous path collection.</returns>
-        public T End() {
-            return Previous();
-        }
+        public T End() => Previous();
 
         /// <summary>
         /// Runs the provided process function on the content of the file
@@ -1311,9 +1183,8 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
-        public T Process(Func<string, string> processFunction) {
-            return Process((p, s) => processFunction(s));
-        }
+        public T Process(Func<string, string> processFunction) 
+            => Process((p, s) => processFunction(s));
 
         /// <summary>
         /// Runs the provided process function on the content of the file
@@ -1337,9 +1208,8 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
-        public T Process(Func<byte[], byte[]> processFunction) {
-            return Process((p, s) => processFunction(s));
-        }
+        public T Process(Func<byte[], byte[]> processFunction) 
+            => Process((p, s) => processFunction(s));
 
         /// <summary>
         /// Runs the provided process function on the content of the file
@@ -1361,33 +1231,29 @@ namespace Fluent.IO {
         /// Reads all text in files in the set.
         /// </summary>
         /// <returns>The string as read from the files.</returns>
-        public string Read() {
-            return String.Join("",
+        public string Read() 
+            => string.Join("",
                 (from p in _paths
                     where !Directory.Exists(p)
                     select File.ReadAllText(p)));
-        }
 
         /// <summary>
         /// Reads all text in files in the set.
         /// </summary>
         /// <param name="encoding">The encoding to use when reading the file.</param>
         /// <returns>The string as read from the files.</returns>
-        public string Read(Encoding encoding) {
-            return String.Join("",
+        public string Read(Encoding encoding) 
+            => string.Join("",
                 (from p in _paths
                     where !Directory.Exists(p)
                     select File.ReadAllText(p, encoding)));
-        }
 
         /// <summary>
         /// Reads all text in files in the set and hands the results to the provided action.
         /// </summary>
         /// <param name="action">An action that takes the content of the file.</param>
         /// <returns>The set</returns>
-        public T Read(Action<string> action) {
-            return Read((s, p) => action(s));
-        }
+        public T Read(Action<string> action) => Read((s, p) => action(s));
 
         /// <summary>
         /// Reads all text in files in the set and hands the results to the provided action.
@@ -1395,9 +1261,8 @@ namespace Fluent.IO {
         /// <param name="action">An action that takes the content of the file.</param>
         /// <param name="encoding">The encoding to use when reading the file.</param>
         /// <returns>The set</returns>
-        public T Read(Action<string> action, Encoding encoding) {
-            return Read((s, p) => action(s), encoding);
-        }
+        public T Read(Action<string> action, Encoding encoding) 
+            => Read((s, p) => action(s), encoding);
 
         /// <summary>
         /// Reads all text in files in the set and hands the results to the provided action.
@@ -1450,9 +1315,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="action">An action that takes an array of bytes.</param>
         /// <returns>The set</returns>
-        public T ReadBytes(Action<byte[]> action) {
-            return ReadBytes((b, p) => action(b));
-        }
+        public T ReadBytes(Action<byte[]> action) => ReadBytes((b, p) => action(b));
 
         /// <summary>
         /// Reads all the bytes in a file and hands them to the provided action.
@@ -1473,7 +1336,7 @@ namespace Fluent.IO {
             get {
                 var tokens = new List<string>();
                 var current = FirstPath();
-                while (!String.IsNullOrEmpty(current)) {
+                while (!string.IsNullOrEmpty(current)) {
                     tokens.Add(System.IO.Path.GetFileName(current));
                     current = System.IO.Path.GetDirectoryName(current);
                 }
@@ -1482,13 +1345,9 @@ namespace Fluent.IO {
             }
         }
 
-        public override string ToString() {
-            return String.Join(", ", _paths);
-        }
+        public override string ToString() => string.Join(", ", _paths);
 
-        public string[] ToStringArray() {
-            return _paths.ToArray();
-        }
+        public string[] ToStringArray() => _paths.ToArray();
 
         /// <summary>
         /// The access control security information for the first path in the collection.
@@ -1506,9 +1365,8 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="action">An action that gets called for each path in the set.</param>
         /// <returns>The set</returns>
-        public T AccessControl(Action<FileSystemSecurity> action) {
-            return AccessControl((p, fss) => action(fss));
-        }
+        public T AccessControl(Action<FileSystemSecurity> action) 
+            => AccessControl((p, fss) => action(fss));
 
         /// <summary>
         /// The access control security information for the first path in the collection.
@@ -1531,9 +1389,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="security">The security to apply.</param>
         /// <returns>The set</returns>
-        public T AccessControl(FileSystemSecurity security) {
-            return AccessControl(p => security);
-        }
+        public T AccessControl(FileSystemSecurity security) => AccessControl(p => security);
 
         /// <summary>
         /// Sets the access control security on all files and directories in the set.
@@ -1559,43 +1415,35 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
-        public T Add(params string[] paths) {
-            return Create(paths.Union(_paths), this);
-        }
+        public T Add(params string[] paths) => Create(paths.Union(_paths), this);
 
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
-        public T Add(params T[] paths) {
-            return Create(paths.SelectMany(p => p._paths).Union(_paths), this);
-        }
+        public T Add(params T[] paths) 
+            => Create(paths.SelectMany(p => p._paths).Union(_paths), this);
 
         /// <summary>
         /// Gets all files under this path.
         /// </summary>
         /// <returns>The collection of file paths.</returns>
-        public T AllFiles() {
-            return Files("*", true);
-        }
+        public T AllFiles() => Files("*", true);
 
         /// <summary>
         /// The attributes for the file for the first path in the collection.
         /// </summary>
         /// <returns>The attributes</returns>
-        public FileAttributes Attributes() {
-            return File.GetAttributes(FirstPath());
-        }
+        public FileAttributes Attributes() => File.GetAttributes(FirstPath());
 
         /// <summary>
         /// The attributes for the file for the first path in the collection.
         /// </summary>
         /// <param name="action">An action to perform on the attributes of each file.</param>
         /// <returns>The attributes</returns>
-        public T Attributes(Action<FileAttributes> action) {
-            return Attributes((p, fa) => action(fa));
-        }
+        public T Attributes(Action<FileAttributes> action) 
+            => Attributes((p, fa) => action(fa));
 
         /// <summary>
         /// The attributes for the file for the first path in the collection.
@@ -1614,9 +1462,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="attributes">The attributes to set.</param>
         /// <returns>The set</returns>
-        public T Attributes(FileAttributes attributes) {
-            return Attributes(p => attributes);
-        }
+        public T Attributes(FileAttributes attributes) => Attributes(p => attributes);
 
         /// <summary>
         /// Sets attributes on all files in the set.
@@ -1646,9 +1492,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="creationTime">The time to set.</param>
         /// <returns>The set</returns>
-        public T CreationTime(DateTime creationTime) {
-            return CreationTime(p => creationTime);
-        }
+        public T CreationTime(DateTime creationTime) => CreationTime(p => creationTime);
 
         /// <summary>
         /// Sets the creation time across the set.
@@ -1684,9 +1528,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="creationTimeUtc">The time to set.</param>
         /// <returns>The set</returns>
-        public T CreationTimeUtc(DateTime creationTimeUtc) {
-            return CreationTimeUtc(p => creationTimeUtc);
-        }
+        public T CreationTimeUtc(DateTime creationTimeUtc) => CreationTimeUtc(p => creationTimeUtc);
 
         /// <summary>
         /// Sets the UTC creation time across the set.
@@ -1710,12 +1552,7 @@ namespace Fluent.IO {
         /// Tests the existence of the paths in the set.
         /// </summary>
         /// <returns>True if all paths exist</returns>
-        public bool Exists {
-            get {
-                return _paths.All(path =>
-                    (Directory.Exists(path) || File.Exists(path)));
-            }
-        }
+        public bool Exists =>_paths.All(path => (Directory.Exists(path) || File.Exists(path)));
 
         /// <summary>
         /// Gets the last access time of the first path in the set
@@ -1733,9 +1570,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="lastAccessTime">The time to set.</param>
         /// <returns>The set</returns>
-        public T LastAccessTime(DateTime lastAccessTime) {
-            return LastAccessTime(p => lastAccessTime);
-        }
+        public T LastAccessTime(DateTime lastAccessTime) => LastAccessTime(p => lastAccessTime);
 
         /// <summary>
         /// Sets the last access time across the set.
@@ -1771,9 +1606,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="lastAccessTimeUtc">The time to set.</param>
         /// <returns>The set</returns>
-        public T LastAccessTimeUtc(DateTime lastAccessTimeUtc) {
-            return LastAccessTimeUtc(p => lastAccessTimeUtc);
-        }
+        public T LastAccessTimeUtc(DateTime lastAccessTimeUtc) => LastAccessTimeUtc(p => lastAccessTimeUtc);
 
         /// <summary>
         /// Sets the UTC last access time across the set.
@@ -1809,9 +1642,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="lastWriteTime">The time to set.</param>
         /// <returns>The set</returns>
-        public T LastWriteTime(DateTime lastWriteTime) {
-            return LastWriteTime(p => lastWriteTime);
-        }
+        public T LastWriteTime(DateTime lastWriteTime) => LastWriteTime(p => lastWriteTime);
 
         /// <summary>
         /// Sets the last write time across the set.
@@ -1847,9 +1678,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="lastWriteTimeUtc">The time to set.</param>
         /// <returns>The set</returns>
-        public T LastWriteTimeUtc(DateTime lastWriteTimeUtc) {
-            return LastWriteTimeUtc(p => lastWriteTimeUtc);
-        }
+        public T LastWriteTimeUtc(DateTime lastWriteTimeUtc) => LastWriteTimeUtc(p => lastWriteTimeUtc);
 
         /// <summary>
         /// Sets the UTC last write time across the set.
@@ -1874,9 +1703,7 @@ namespace Fluent.IO {
         /// Never goes above the root of the drive.
         /// </summary>
         /// <returns>The new set</returns>
-        public T Up() {
-            return Up(1);
-        }
+        public T Up() => Up(1);
 
         /// <summary>
         /// Goes up the specified number of levels on each path in the set.
@@ -1903,9 +1730,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="text">The text to write.</param>
         /// <returns>The set</returns>
-        public T Write(string text) {
-            return Write(p => text, false);
-        }
+        public T Write(string text) => Write(p => text, false);
 
         /// <summary>
         /// Writes to all files in the set using UTF8.
@@ -1913,9 +1738,7 @@ namespace Fluent.IO {
         /// <param name="text">The text to write.</param>
         /// <param name="append">True if the text should be appended to the existing content. Default is false.</param>
         /// <returns>The set</returns>
-        public T Write(string text, bool append) {
-            return Write(p => text, append);
-        }
+        public T Write(string text, bool append) => Write(p => text, append);
 
         /// <summary>
         /// Writes to all files in the set.
@@ -1923,9 +1746,7 @@ namespace Fluent.IO {
         /// <param name="text">The text to write.</param>
         /// <param name="encoding">The encoding to use.</param>
         /// <returns>The set</returns>
-        public T Write(string text, Encoding encoding) {
-            return Write(p => text, encoding, false);
-        }
+        public T Write(string text, Encoding encoding) => Write(p => text, encoding, false);
 
         /// <summary>
         /// Writes to all files in the set.
@@ -1934,9 +1755,7 @@ namespace Fluent.IO {
         /// <param name="encoding">The encoding to use.</param>
         /// <param name="append">True if the text should be appended to the existing content. Default is false.</param>
         /// <returns>The set</returns>
-        public T Write(string text, Encoding encoding, bool append) {
-            return Write(p => text, encoding, append);
-        }
+        public T Write(string text, Encoding encoding, bool append) => Write(p => text, encoding, append);
 
         /// <summary>
         /// Writes to all files in the set.
@@ -1944,9 +1763,7 @@ namespace Fluent.IO {
         /// <param name="textFunction">A function that returns the text to write for each path.</param>
         /// <param name="append">True if the text should be appended to the existing content. Default is false.</param>
         /// <returns>The set</returns>
-        public T Write(Func<T, string> textFunction, bool append) {
-            return Write(textFunction, Encoding.Default, append);
-        }
+        public T Write(Func<T, string> textFunction, bool append) => Write(textFunction, Encoding.Default, append);
 
         /// <summary>
         /// Writes to all files in the set.
@@ -1973,9 +1790,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="bytes">The byte array to write.</param>
         /// <returns>The set</returns>
-        public T Write(byte[] bytes) {
-            return Write(p => bytes);
-        }
+        public T Write(byte[] bytes) => Write(p => bytes);
 
         /// <summary>
         /// Writes to all files in the set.

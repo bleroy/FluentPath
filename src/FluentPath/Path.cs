@@ -4,7 +4,6 @@
 
 using System.Collections.Generic;
 using System.Linq;
-using SystemIO = System.IO;
 
 namespace Fluent.IO {
     public sealed class Path : PathBase<Path> {
@@ -58,12 +57,8 @@ namespace Fluent.IO {
         public Path(IEnumerable<string> paths, Path previousPaths) : base(paths, previousPaths) {
         }
 
-        public static explicit operator string(Path path) {
-            return path.FirstPath();
-        }
+        public static explicit operator string(Path path) => path.FirstPath();
 
-        public static explicit operator Path(string path) {
-            return new Path(path);
-        }
+        public static explicit operator Path(string path) => new Path(path);
     }
 }
