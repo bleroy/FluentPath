@@ -1330,67 +1330,6 @@ namespace Fluent.IO {
         public string[] ToStringArray() => _paths.ToArray();
 
         /// <summary>
-        /// The access control security information for the first path in the collection.
-        /// </summary>
-        /// <returns>The security information</returns>
-        public FileSystemSecurity AccessControl() {
-            var firstPath = FirstPath();
-            return Directory.Exists(firstPath)
-                ? Directory.GetAccessControl(firstPath)
-                : (FileSystemSecurity)File.GetAccessControl(firstPath);
-        }
-
-        /// <summary>
-        /// The access control security information for the first path in the collection.
-        /// </summary>
-        /// <param name="action">An action that gets called for each path in the set.</param>
-        /// <returns>The set</returns>
-        public T AccessControl(Action<FileSystemSecurity> action) 
-            => AccessControl((p, fss) => action(fss));
-
-        /// <summary>
-        /// The access control security information for the first path in the collection.
-        /// </summary>
-        /// <param name="action">An action that gets called for each path in the set.</param>
-        /// <returns>The set</returns>
-        public T AccessControl(Action<T, FileSystemSecurity> action) {
-            foreach (var path in _paths) {
-                action(Create(path, this),
-                    Directory.Exists(path)
-                        ? Directory.GetAccessControl(path)
-                        : (FileSystemSecurity) File.GetAccessControl(path)
-                    );
-            }
-            return (T)this;
-        }
-
-        /// <summary>
-        /// Sets the access control security on all files and directories in the set.
-        /// </summary>
-        /// <param name="security">The security to apply.</param>
-        /// <returns>The set</returns>
-        public T AccessControl(FileSystemSecurity security) => AccessControl(p => security);
-
-        /// <summary>
-        /// Sets the access control security on all files and directories in the set.
-        /// </summary>
-        /// <param name="securityFunction">A function that returns the security for each path.</param>
-        /// <returns>The set</returns>
-        public T AccessControl(Func<T, FileSystemSecurity> securityFunction) {
-            foreach (var path in _paths) {
-                if (Directory.Exists(path)) {
-                    Directory.SetAccessControl(path,
-                        (DirectorySecurity)securityFunction(Create(path, this)));
-                }
-                else {
-                    File.SetAccessControl(path,
-                        (FileSecurity)securityFunction(Create(path, this)));
-                }
-            }
-            return (T)this;
-        }
-
-        /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
