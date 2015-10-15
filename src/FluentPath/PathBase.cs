@@ -636,17 +636,6 @@ namespace Fluent.IO {
         }
 
         /// <summary>
-        /// Decrypts all files in the set.
-        /// </summary>
-        /// <returns>The set</returns>
-        public T Decrypt() {
-            foreach (var path in _paths.Where(path => !Directory.Exists(path))) {
-                File.Decrypt(path);
-            }
-            return (T)this;
-        }
-
-        /// <summary>
         /// Deletes this path from the file system.
         /// </summary>
         /// <returns>The parent path.</returns>
@@ -674,17 +663,6 @@ namespace Fluent.IO {
                 result.Add(SystemPath.GetDirectoryName(path));
             }
             return Create(result, this);
-        }
-
-        /// <summary>
-        /// Encrypts all files in the set.
-        /// </summary>
-        /// <returns>The set</returns>
-        public T Encrypt() {
-            foreach (var path in _paths.Where(path => !Directory.Exists(path))) {
-                File.Encrypt(path);
-            }
-            return (T)this;
         }
 
         /// <summary>

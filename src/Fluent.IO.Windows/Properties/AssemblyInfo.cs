@@ -1,18 +1,15 @@
-﻿// Copyright © 2010-2015 Bertrand Le Roy.  All Rights Reserved.
-// This code released under the terms of the 
-// MIT License http://opensource.org/licenses/MIT
-
-using System.Reflection;
+﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("Fluent.Zip")]
-[assembly: AssemblyDescription("Zip compression and decompression extensions for Fluent.IO")]
+[assembly: AssemblyTitle("Fluent.IO.Windows")]
+[assembly: AssemblyDescription("Windows-specific extensions to Fluent.IO")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("Fluent.Zip")]
+[assembly: AssemblyProduct("Fluent.IO.Windows")]
 [assembly: AssemblyCopyright("Copyright © 2010-2015 Bertrand Le Roy")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -23,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("38d370c4-220f-4d2f-bb49-33aac153d478")]
+[assembly: Guid("a9876c6f-820e-41eb-bbf0-6cce2936aa8f")]
 
 // Version information for an assembly consists of the following four values:
 //

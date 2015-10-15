@@ -14,6 +14,7 @@ using System.Linq;
 using System.Text;
 using SystemIO = System.IO;
 using Fluent.IO;
+using Fluent.IO.Windows;
 using NUnit.Framework;
 using TechTalk.SpecFlow;
 using System.Globalization;

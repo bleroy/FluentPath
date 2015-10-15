@@ -77,6 +77,10 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Fluent.IO.Windows\Fluent.IO.Windows.csproj">
+      <Project>{a9876c6f-820e-41eb-bbf0-6cce2936aa8f}</Project>
+      <Name>Fluent.IO.Windows</Name>
+    </ProjectReference>
     <ProjectReference Include="..\FluentPath\Fluent.IO.csproj">
       <Project>{098E43F5-97C4-419E-B0BE-DCE7F568054B}</Project>
       <Name>Fluent.IO</Name>
