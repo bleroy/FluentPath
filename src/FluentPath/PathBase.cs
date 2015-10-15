@@ -12,6 +12,8 @@ using System.Security.AccessControl;
 using System.Text;
 using System.Text.RegularExpressions;
 
+using SystemPath = System.IO.Path;
+
 namespace Fluent.IO {
     [TypeConverter(typeof(PathConverter))]
     public class PathBase<T> : IEnumerable<T> where T : PathBase<T>, new() {
@@ -73,8 +75,8 @@ namespace Fluent.IO {
             if (paths == null) throw new ArgumentNullException(nameof(paths));
             _paths = paths
                 .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s[s.Length - 1] == System.IO.Path.DirectorySeparatorChar &&
-                             System.IO.Path.GetPathRoot(s) != s ?
+                .Select(s => s[s.Length - 1] == SystemPath.DirectorySeparatorChar &&
+                             SystemPath.GetPathRoot(s) != s ?
                     s.Substring(0, s.Length - 1) : s)
                 .Distinct(StringComparer.CurrentCultureIgnoreCase);
             _previousPaths = previousPaths;
@@ -112,7 +114,7 @@ namespace Fluent.IO {
             set { Directory.SetCurrentDirectory(value.FirstPath()); }
         }
 
-        public static T Root => Create(System.IO.Path.GetPathRoot(Current.ToString()));
+        public static T Root => Create(SystemPath.GetPathRoot(Current.ToString()));
 
         /// <summary>
         /// Creates a directory in the file system.
@@ -134,7 +136,7 @@ namespace Fluent.IO {
             if (pathTokens.Length == 0) {
                 throw new ArgumentException("At least one token needs to be specified.", nameof(pathTokens));
             }
-            return Create(System.IO.Path.Combine(pathTokens));
+            return Create(SystemPath.Combine(pathTokens));
         }
 
         public static explicit operator string(PathBase<T> path) => path.FirstPath();
@@ -178,27 +180,27 @@ namespace Fluent.IO {
         /// The name of the directory for the first path in the collection.
         /// This is the string representation of the parent directory path.
         /// </summary>
-        public string DirectoryName => System.IO.Path.GetDirectoryName(FirstPath());
+        public string DirectoryName => SystemPath.GetDirectoryName(FirstPath());
 
         /// <summary>
         /// The extension for the first path in the collection, including the ".".
         /// </summary>
-        public string Extension => System.IO.Path.GetExtension(FirstPath());
+        public string Extension => SystemPath.GetExtension(FirstPath());
 
         /// <summary>
         /// The filename or folder name for the first path in the collection, including the extension.
         /// </summary>
-        public string FileName => System.IO.Path.GetFileName(FirstPath());
+        public string FileName => SystemPath.GetFileName(FirstPath());
 
         /// <summary>
         /// The filename or folder name for the first path in the collection, without the extension.
         /// </summary>
-        public string FileNameWithoutExtension => System.IO.Path.GetFileNameWithoutExtension(FirstPath());
+        public string FileNameWithoutExtension => SystemPath.GetFileNameWithoutExtension(FirstPath());
 
         /// <summary>
         /// The fully qualified path string for the first path in the collection.
         /// </summary>
-        public string FullPath => System.IO.Path.GetFullPath(FirstPath());
+        public string FullPath => SystemPath.GetFullPath(FirstPath());
 
         /// <summary>
         /// The fully qualified path strings for all the paths in the collection.
@@ -207,7 +209,7 @@ namespace Fluent.IO {
             get {
                 var result = new HashSet<string>();
                 foreach (var path in _paths) {
-                    result.Add(System.IO.Path.GetFullPath(path));
+                    result.Add(SystemPath.GetFullPath(path));
                 }
                 return result.ToArray();
             }
@@ -216,7 +218,7 @@ namespace Fluent.IO {
         /// <summary>
         /// True all the paths in the collection have an extension.
         /// </summary>
-        public bool HasExtension => _paths.All(System.IO.Path.HasExtension);
+        public bool HasExtension => _paths.All(SystemPath.HasExtension);
 
         /// <summary>
         /// True if each path in the set is the path of
@@ -235,7 +237,7 @@ namespace Fluent.IO {
         /// <summary>
         /// True if all the paths in the collection are fully-qualified.
         /// </summary>
-        public bool IsRooted => _paths.All(System.IO.Path.IsPathRooted);
+        public bool IsRooted => _paths.All(SystemPath.IsPathRooted);
 
         /// <summary>
         /// The parent paths for the paths in the collection.
@@ -251,7 +253,7 @@ namespace Fluent.IO {
         /// The root directory of the first path of the collection,
         /// such as "C:\".
         /// </summary>
-        public string PathRoot => System.IO.Path.GetPathRoot(FirstPath());
+        public string PathRoot => SystemPath.GetPathRoot(FirstPath());
 
         /// <summary>
         /// The previous set, from which the current one was created.
@@ -280,7 +282,7 @@ namespace Fluent.IO {
             var result = new HashSet<string>();
             foreach (var path in _paths.Where(p => !Directory.Exists(p))) {
                 result.Add(
-                    System.IO.Path.ChangeExtension(path,
+                    SystemPath.ChangeExtension(path,
                         extensionTransformation(Create(path, this))));
             }
             return Create(result, this);
@@ -295,7 +297,7 @@ namespace Fluent.IO {
         public T Combine(Func<T, string> directoryNameGenerator) {
             var result = new HashSet<string>();
             foreach (var path in _paths) {
-                result.Add(System.IO.Path.Combine(path, directoryNameGenerator(Create(path, this))));
+                result.Add(SystemPath.Combine(path, directoryNameGenerator(Create(path, this))));
             }
             return Create(result, this);
         }
@@ -325,7 +327,7 @@ namespace Fluent.IO {
             pathTokens.CopyTo(concatenated, 1);
             foreach (var path in _paths) {
                 concatenated[0] = path;
-                result.Add(System.IO.Path.Combine(concatenated));
+                result.Add(SystemPath.Combine(concatenated));
             }
             return Create(result, this);
         }
@@ -422,7 +424,7 @@ namespace Fluent.IO {
                     else {
                         // source is a file
                         p = Directory.Exists(p)
-                            ? System.IO.Path.Combine(p, System.IO.Path.GetFileName(sourcePath)) : p;
+                            ? SystemPath.Combine(p, SystemPath.GetFileName(sourcePath)) : p;
                         CopyFile(sourcePath, p, overwrite);
                         result.Add(p);
                     }
@@ -433,15 +435,15 @@ namespace Fluent.IO {
 
         private static void CopyFile(string srcPath, string destPath, Overwrite overwrite) {
             if ((overwrite == Overwrite.Throw) && File.Exists(destPath)) {
-                throw new InvalidOperationException(string.Format("File {0} already exists.", destPath));
+                throw new InvalidOperationException($"File {destPath} already exists.");
             }
             if (((overwrite != Overwrite.Always) &&
                 ((overwrite != Overwrite.Never) || File.Exists(destPath))) &&
                 ((overwrite != Overwrite.IfNewer) || (File.Exists(destPath) &&
                 (File.GetLastWriteTime(srcPath) <= File.GetLastWriteTime(destPath))))) return;
-            var dir = System.IO.Path.GetDirectoryName(destPath);
+            var dir = SystemPath.GetDirectoryName(destPath);
             if (dir == null) {
-                throw new InvalidOperationException(string.Format("Directory {0} not found.", destPath));
+                throw new InvalidOperationException($"Directory {destPath} not found.");
             }
             if (!Directory.Exists(dir)) {
                 Directory.CreateDirectory(dir);
@@ -460,17 +462,17 @@ namespace Fluent.IO {
                     if (subdirectory == null) continue;
                     CopyDirectory(
                         subdirectory,
-                        System.IO.Path.Combine(
+                        SystemPath.Combine(
                             destination,
-                            System.IO.Path.GetFileName(subdirectory)),
+                            SystemPath.GetFileName(subdirectory)),
                         overwrite, true);
                 }
             }
             foreach (var file in Directory.GetFiles(source)) {
                 if (file == null) continue;
                 CopyFile(
-                    file, System.IO.Path.Combine(
-                        destination, System.IO.Path.GetFileName(file)), overwrite);
+                    file, SystemPath.Combine(
+                        destination, SystemPath.GetFileName(file)), overwrite);
             }
         }
 
@@ -669,7 +671,7 @@ namespace Fluent.IO {
                 else {
                     File.Delete(path);
                 }
-                result.Add(System.IO.Path.GetDirectoryName(path));
+                result.Add(SystemPath.GetDirectoryName(path));
             }
             return Create(result, this);
         }
@@ -963,13 +965,13 @@ namespace Fluent.IO {
         public T MakeRelativeTo(Func<T, T> parentGenerator) {
             var result = new HashSet<string>();
             foreach (var path in _paths) {
-                if (!System.IO.Path.IsPathRooted(path)) {
+                if (!SystemPath.IsPathRooted(path)) {
                     throw new InvalidOperationException("Path must be rooted to be made relative.");
                 }
-                var fullPath = System.IO.Path.GetFullPath(path);
+                var fullPath = SystemPath.GetFullPath(path);
                 var parentFull = parentGenerator(Create(path, this)).FullPath;
-                if (parentFull[parentFull.Length - 1] != System.IO.Path.DirectorySeparatorChar) {
-                    parentFull += System.IO.Path.DirectorySeparatorChar;
+                if (parentFull[parentFull.Length - 1] != SystemPath.DirectorySeparatorChar) {
+                    parentFull += SystemPath.DirectorySeparatorChar;
                 }
                 if (!fullPath.StartsWith(parentFull)) {
                     throw new InvalidOperationException("Path must start with parent.");
@@ -1045,7 +1047,7 @@ namespace Fluent.IO {
                     }
                     else {
                         d = Directory.Exists(d)
-                            ? System.IO.Path.Combine(d, System.IO.Path.GetFileName(path)) : d;
+                            ? SystemPath.Combine(d, SystemPath.GetFileName(path)) : d;
                         MoveFile(path, d, overwrite);
                     }
                     result.Add(d);
@@ -1056,7 +1058,7 @@ namespace Fluent.IO {
 
         private static bool MoveFile(string srcPath, string destPath, Overwrite overwrite) {
             if ((overwrite == Overwrite.Throw) && File.Exists(destPath)) {
-                throw new InvalidOperationException(string.Format("File {0} already exists.", destPath));
+                throw new InvalidOperationException($"File {destPath} already exists.");
             }
             if ((overwrite != Overwrite.Always) && ((overwrite != Overwrite.Never) || File.Exists(destPath)) &&
                 ((overwrite != Overwrite.IfNewer) ||
@@ -1069,9 +1071,9 @@ namespace Fluent.IO {
         }
 
         private static void EnsureDirectoryExists(string destPath) {
-            var dir = System.IO.Path.GetDirectoryName(destPath);
+            var dir = SystemPath.GetDirectoryName(destPath);
             if (dir == null) {
-                throw new InvalidOperationException(string.Format("Directory {0} not found.", destPath));
+                throw new InvalidOperationException($"Directory {destPath} not found.");
             }
             if (!Directory.Exists(dir)) {
                 Directory.CreateDirectory(dir);
@@ -1089,13 +1091,13 @@ namespace Fluent.IO {
                 if (subdirectory == null) continue;
                 everythingMoved &=
                     MoveDirectory(subdirectory,
-                        System.IO.Path.Combine(destination, System.IO.Path.GetFileName(subdirectory)), overwrite);
+                        SystemPath.Combine(destination, SystemPath.GetFileName(subdirectory)), overwrite);
             }
             foreach (var file in Directory.GetFiles(source)) {
                 if (file == null) continue;
                 everythingMoved &=
                     MoveFile(file,
-                        System.IO.Path.Combine(destination, System.IO.Path.GetFileName(file)), overwrite);
+                        SystemPath.Combine(destination, SystemPath.GetFileName(file)), overwrite);
             }
             if (everythingMoved) {
                 Directory.Delete(source);
@@ -1337,8 +1339,8 @@ namespace Fluent.IO {
                 var tokens = new List<string>();
                 var current = FirstPath();
                 while (!string.IsNullOrEmpty(current)) {
-                    tokens.Add(System.IO.Path.GetFileName(current));
-                    current = System.IO.Path.GetDirectoryName(current);
+                    tokens.Add(SystemPath.GetFileName(current));
+                    current = SystemPath.GetDirectoryName(current);
                 }
                 tokens.Reverse();
                 return tokens.ToArray();
@@ -1716,7 +1718,7 @@ namespace Fluent.IO {
             foreach (var path in _paths) {
                 var str = path;
                 for (var i = 0; i < levels; i++) {
-                    var strUp = System.IO.Path.GetDirectoryName(str);
+                    var strUp = SystemPath.GetDirectoryName(str);
                     if (strUp == null) break;
                     str = strUp;
                 }
