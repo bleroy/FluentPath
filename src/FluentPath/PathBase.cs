@@ -1765,7 +1765,7 @@ namespace Fluent.IO {
         /// <param name="textFunction">A function that returns the text to write for each path.</param>
         /// <param name="append">True if the text should be appended to the existing content. Default is false.</param>
         /// <returns>The set</returns>
-        public T Write(Func<T, string> textFunction, bool append) => Write(textFunction, Encoding.Default, append);
+        public T Write(Func<T, string> textFunction, bool append) => Write(textFunction, Encoding.GetEncoding(0), append);
 
         /// <summary>
         /// Writes to all files in the set.
