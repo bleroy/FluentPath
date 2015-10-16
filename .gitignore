@@ -3,3 +3,4 @@ obj
 bin
 packages
 ApiPortabilityAnalysis.htm
+project.lock.json
