@@ -10,7 +10,7 @@ Getting started
 ---------------
 
 In order to run the tests for this package from Visual Studio, you'll need to have
-[SpecFlow][] and [NUnit][] installed.
+[SpecFlow][] and [xUnit][] installed.
 
 Using FluentPath
 ----------------
@@ -81,5 +81,5 @@ Check it out, I hope you’ll enjoy it.
 Suggestions and contributions are more than welcome.
 
 [specflow]: http://www.specflow.org/getting-started/
-[NUnit]:    http://www.nunit.org/
+[xUnit]:    http://xunit.github.io/
 [blogpost]: http://weblogs.asp.net/bleroy/archive/2010/03/10/fluentpath-a-fluent-wrapper-around-system-io.aspx
