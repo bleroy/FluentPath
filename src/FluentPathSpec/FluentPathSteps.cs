@@ -7,26 +7,24 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 
 namespace FluentPathSpec {
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using SystemIO = System.IO;
-using Fluent.IO;
-using Fluent.IO.Windows;
-using NUnit.Framework;
-using TechTalk.SpecFlow;
-using System.Globalization;
+    using System;
+    using System.Collections;
+    using System.Collections.Generic;
+    using System.Globalization;
+    using System.Linq;
+    using System.Text;
+    using SystemIO = System.IO;
+    using Fluent.IO;
+    using Fluent.IO.Windows;
+    using Cornichon;
+    using Xunit;
 
-    [Binding]
     public class FluentPathSteps {
         private Path _path;
         private Path _result;
         private string _resultString;
 
-        [Given("a clean test directory")]
-        public void GivenACleanDirectory() {
+        public void HaveACleanDirectory() {
             // foo.txt
             // bar/
             //   baz.txt
@@ -58,11 +56,8 @@ using System.Globalization;
                 new byte[] {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0xFF});
         }
 
-        [When(@"I add a permission to ([^\s]*)")]
-        public void WhenIAddPermission(string path) {
-// ReSharper disable PossibleNullReferenceException
+        public void AddPermission(string path) {
             SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
-// ReSharper restore PossibleNullReferenceException
             var filePath = _path.Combine(path.Split('\\'));
             var accessControl = filePath.AccessControl();
             accessControl.AddAccessRule(
@@ -73,90 +68,73 @@ using System.Globalization;
             filePath.AccessControl(accessControl);
         }
 
-        [When("I recursively select (.*)")]
-        public void WhenIRecursivelySelect(string searchPattern) {
+        public void RecursivelySelect(string searchPattern) {
             _result = _path.FileSystemEntries(searchPattern, true);
         }
 
-        [When("I select subdirectories")]
-        public void WhenISelectSubdirectories() {
+        public void SelectSubdirectories() {
             _result = _path.Directories();
         }
 
-        [When("I select deep subdirectories")]
-        public void WhenISelectDeepSubdirectories() {
+        public void SelectDeepSubdirectories() {
             _result = _path.Directories("*", true);
         }
 
-        [When("I search for subdirectories with pattern (.*)")]
-        public void WhenISelectDeepSubdirectoriesWithAPattern(string pattern) {
+        public void SelectDeepSubdirectoriesWithAPattern(string pattern) {
             _result = _path.Directories(pattern, true);
         }
 
-        [When("I search for subdirectories with a condition")]
-        public void WhenISelectSubdirectoriesWithACondition() {
+        public void SelectSubdirectoriesWithACondition() {
             _result = _path.Directories(p => p.FileName.StartsWith("sub"));
         }
 
-        [When("I search for deep subdirectories with a condition")]
-        public void WhenISelectDeepSubdirectoriesWithACondition() {
+        public void SelectDeepSubdirectoriesWithACondition() {
             _result = _path.Directories(p => p.FileName.StartsWith("sub"), true);
         }
 
-        [When("I select all files")]
-        public void WhenISelectAllFiles() {
+        public void SelectAllFiles() {
             _result = _path.AllFiles();
         }
 
-        [When("I select files")]
-        public void WhenISelectFiles() {
+        public void SelectFiles() {
             _result = _path.Files();
         }
 
-        [When("I search for files with a condition")]
-        public void WhenISearchForFilesWithACondition() {
+        public void SearchForFilesWithACondition() {
             _result = _path.Files(f => f.Extension == ".txt");
         }
 
-        [When("I search for deep files with a condition")]
-        public void WhenISearchForDeepFilesWithACondition() {
+        public void SearchForDeepFilesWithACondition() {
             _result = _path.Files(f => f.Extension == ".txt", true);
         }
 
-        [When("I search for deep files with pattern (.*)")]
-        public void WhenISearchForDeepFilesWithPattern(string pattern) {
+        public void SearchForDeepFilesWithPattern(string pattern) {
             _result = _path.Files(pattern, true);
         }
 
-        [When(@"I select files with extensions (.*)")]
-        public void WhenISelectFilesWithExtension(string extensions) {
+        public void SelectFilesWithExtension(string extensions) {
             _result = _path.Files("*", true)
                 .WhereExtensionIs(
                     extensions.Split(',').Select(s => s.Trim()).ToArray());
         }
 
-        [When("I select file system entries")]
-        public void WhenISelectFileSystemEntries() {
+        public void SelectFileSystemEntries() {
             _result = _path.FileSystemEntries();
         }
 
-        [When("I search for file system entries with a condition")]
-        public void WhenISearchForFileSystemEntriesWithACondition() {
+        public void SearchForFileSystemEntriesWithACondition() {
             _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1);
         }
 
-        [When("I search for deep file system entries with a condition")]
-        public void WhenISearchForDeepFileSystemEntriesWithACondition() {
+        public void SearchForDeepFileSystemEntriesWithACondition() {
             _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1, true);
         }
 
-        [When("I search for deep file system entries with pattern (.*)")]
-        public void WhenISearchForDeepFileSystemEntriesWithPattern(string pattern) {
+        public void SearchForDeepFileSystemEntriesWithPattern(string pattern) {
             _result = _path.FileSystemEntries(pattern, true);
         }
 
-        [When(@"I set attributes (.*) on ([^\s]*)")]
-        public void WhenISetAttributes(string attributeNames, string path) {
+        public void SetAttributes(string attributeNames, string path) {
             var attrNames = attributeNames.Split(',');
             var attributes =
                 attrNames.Aggregate<string, FileAttributes>(0,
@@ -165,8 +143,7 @@ using System.Globalization;
             _path.Combine(path.Split('\\')).Attributes(attributes);
         }
 
-        [When(@"I set (.*) time on ([^\s]*) to (.*)")]
-        public void WhenISetTime(string type, string path, string dateString) {
+        public void SetTime(string type, string path, string dateString) {
             var combinedPath = _path.Combine(path.Split('\\'));
             var date = DateTime.Parse(dateString, CultureInfo.InvariantCulture);
             switch (type) {
@@ -191,58 +168,47 @@ using System.Globalization;
             }
         }
 
-        [When("I copy (.*) to (.*)")]
-        public void WhenICopy(string from, string to) {
+        public void Copy(string from, string to) {
             var src = _path.Combine(from);
             src.Copy(_path.Combine(to.Split('\\')));
         }
 
-        [When("I overwrite (.*) copy with (.*) to (.*)")]
-        public void WhenICopyWithOverwrite(string overwriteMode, string from, string to) {
+        public void CopyWithOverwrite(string overwriteMode, string from, string to) {
             var overwrite = (Overwrite)Enum.Parse(typeof(Overwrite), overwriteMode, true);
             var src = _path.Combine(from);
-            try {
+            Assert.Throws<Exception>(() =>
+            {
                 src.Copy(_path.Combine(to.Split('\\')), overwrite);
-            }
-            catch(Exception e) {
-                ScenarioContext.Current["Exception"] = e;
-            }
+            });
         }
 
-        [When("I copy (.*) with a transform")]
-        public void WhenICopyWithATransform(string path) {
+        public void CopyWithATransform(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Copy(
                     p => p.Parent().Combine(
                         p.FileNameWithoutExtension + p.FileNameWithoutExtension + p.Extension));
         }
 
-        [When("I recursively copy (.*) to (.*)")]
-        public void WhenIRecursivelyCopy(string from, string to) {
+        public void RecursivelyCopy(string from, string to) {
             var src = _path.Combine(from);
             src.Copy(_path.Combine(to.Split('\\')), Overwrite.Never, true);
         }
 
-        [When("I move (.*) to (.*)")]
-        public void WhenIMove(string from, string to) {
+        public void Move(string from, string to) {
             var src = _path.Combine(from);
             src.Move((string)_path.Combine(to.Split('\\')));
         }
 
-        [When("I overwrite (.*) move with (.*) to (.*)")]
-        public void WhenIMoveWithOverwrite(string overwriteMode, string from, string to) {
+        public void MoveWithOverwrite(string overwriteMode, string from, string to) {
             var overwrite = (Overwrite)Enum.Parse(typeof(Overwrite), overwriteMode, true);
             var src = _path.Combine(from);
-            try {
+            Assert.Throws<Exception>(() =>
+            {
                 src.Move((string)_path.Combine(to.Split('\\')), overwrite);
-            }
-            catch (Exception e) {
-                ScenarioContext.Current["Exception"] = e;
-            }
+            });
         }
 
-        [When("I move (.*) with a transform")]
-        public void WhenIMoveWithATransform(string path) {
+        public void MoveWithATransform(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Move(
                     p => p.Parent().Combine(
@@ -250,8 +216,7 @@ using System.Globalization;
                         p.Extension));
         }
 
-        [When(@"I open ([^\s]*)")]
-        public void WhenIOpen(string path) {
+        public void Open(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Open(s => {
                           using (var reader = new StreamReader(s)) {
@@ -260,39 +225,33 @@ using System.Globalization;
                       });
         }
 
-        [When(@"I process the path and content of (.*)")]
-        public void WhenIProcessThePathAndContentOf(string path) {
+        public void ProcessThePathAndContentOf(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Process((p, s) => s.ToUpperInvariant() + " - processed " + p.FileName);
         }
 
-        [When(@"I process the content of (.*)")]
-        public void WhenIProcessTheContentOf(string path) {
+        public void ProcessTheContentOf(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Process(s => s.ToUpperInvariant() + " - processed");
         }
 
-        [When(@"I append ""(.*)"" to ([^\s]*)")]
-        public void WhenIAppend(string text, string path) {
+        public void Append(string text, string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Write(text, true);
         }
 
-        [When(@"I append ""(.*)"" to ([^\s]*) using ([^\s]*) encoding")]
-        public void WhenIAppendEncoded(string content, string path, string encodingName) {
+        public void AppendEncoded(string content, string path, string encodingName) {
             var encoding = Encoding.GetEncoding(encodingName);
             _path.Combine(path.Split('\\')).Write(
                 content, encoding, true);
         }
 
-        [When(@"I replace the text of (.*) with ""(.*)""")]
-        public void WhenIReplace(string path, string text) {
+        public void Replace(string path, string text) {
             Path.Current.Combine(path.Split('\\'))
                 .Write(text);
         }
 
-        [When(@"I binary process the content of (.*)")]
-        public void WhenIBinaryProcessTheContentOf(string path) {
+        public void BinaryProcessTheContentOf(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Process(
                     ba => {
@@ -304,8 +263,7 @@ using System.Globalization;
                 );
         }
 
-        [When(@"I binary process the path and content of (.*)")]
-        public void WhenIBinaryProcessThePathAndContentOf(string path) {
+        public void BinaryProcessThePathAndContentOf(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Process(
                     (p, ba) => {
@@ -318,24 +276,20 @@ using System.Globalization;
                 );
         }
 
-        [When("I get the path for (.*)")]
-        public void WhenIGetThePathFor(string path) {
+        public void GetThePathFor(string path) {
             _path = _path.Combine(path.Split('\\'));
         }
 
-        [When("I create that directory")]
-        public void WhenICreateThatDirectory() {
+        public void CreateThatDirectory() {
             _path.CreateDirectory();
         }
 
-        [When("I create a directory from (.*)")]
-        public void WhenICreateADirectoryFrom(string path) {
+        public void CreateADirectoryFrom(string path) {
             Path.CreateDirectory(
                 Path.Current.Combine(path.Split('\\')).FullPath);
         }
 
-        [When("I open (.*) and read the contents")]
-        public void WhenIOpenFilesAndReadContents(string fileList) {
+        public void OpenFilesAndReadContents(string fileList) {
             var files =
                 new Path(
                     fileList.Split(
@@ -348,8 +302,7 @@ using System.Globalization;
                 });
         }
 
-        [When("I open (.*) and read the path and contents")]
-        public void WhenIOpenFilesAndReadPathAndContents(string fileList) {
+        public void OpenFilesAndReadPathAndContents(string fileList) {
             var files =
                 new Path(
                     fileList.Split(
@@ -362,8 +315,7 @@ using System.Globalization;
                 });
         }
 
-        [When("I read the contents of (.*)")]
-        public void WhenIReadContents(string fileList) {
+        public void ReadContents(string fileList) {
             var files =
                 new Path(
                     fileList.Split(
@@ -372,8 +324,7 @@ using System.Globalization;
                 s => {_resultString += s;});
         }
 
-        [When("I read the path and contents of (.*)")]
-        public void WhenIReadPathAndContents(string fileList) {
+        public void ReadPathAndContents(string fileList) {
             var files =
                 new Path(
                     fileList.Split(
@@ -384,21 +335,18 @@ using System.Globalization;
                 });
         }
 
-        [When(@"I use a Lambda to create directories with the same names as file in ([^\s]*)")]
-        public void WhenIUseALambdaToCreateDirectoriesUnder(string path) {
+        public void UseALambdaToCreateDirectoriesUnder(string path) {
             _result = _path.Combine(path.Split('\\'))
                 .AllFiles()
                 .CreateDirectories(p => p.FileNameWithoutExtension);
         }
 
-        [When("I create a (.*) subdirectory from (.*)")]
-        public void WhenICreateASubdirectory(string subdirectoryName, string path) {
+        public void CreateASubdirectory(string subdirectoryName, string path) {
             Path.Current.Combine(path.Split('\\'))
                 .CreateSubDirectory(subdirectoryName);
         }
 
-        [When(@"I create ([^\s]*) subdirectories under (.*)")]
-        public void WhenICreateSubDirectoriesUnder(string directoryName, string targetDirectoryNames) {
+        public void CreateSubDirectoriesUnder(string directoryName, string targetDirectoryNames) {
             var targets =
                 new Path(
                     targetDirectoryNames.Split(
@@ -406,15 +354,13 @@ using System.Globalization;
             targets.CreateDirectories(directoryName);
         }
 
-        [When(@"I create a (.*) text file with the text ""(.*)""")]
-        public void WhenICreateATextFileWithText(string path, string content) {
+        public void CreateATextFileWithText(string path, string content) {
             Path.Current.CreateFiles(
                 p => (Path)path.Replace('\\', SystemIO.Path.DirectorySeparatorChar),
                 p => content);
         }
 
-        [When(@"I create a (.*) encoded (.*) file with the text ""(.*)""")]
-        public void WhenICreateAnEncodedTextFileWithText(string encodingName, string path, string content) {
+        public void CreateAnEncodedTextFileWithText(string encodingName, string path, string content) {
             var encoding = Encoding.GetEncoding(encodingName);
             Path.Current.CreateFiles(
                 p => (Path)path.Replace('\\', SystemIO.Path.DirectorySeparatorChar),
@@ -422,8 +368,7 @@ using System.Globalization;
                 encoding);
         }
 
-        [When("I create a (.*) binary file with (.*)")]
-        public void WhenICreateABinaryFileWith(string path, string hexContent) {
+        public void CreateABinaryFileWith(string path, string hexContent) {
             var content = new byte[hexContent.Length / 2];
             for (var i = 0; i < hexContent.Length; i += 2 ) {
                 content[i/2] = byte.Parse(
@@ -434,38 +379,32 @@ using System.Globalization;
                 p => content);
         }
 
-        [When("I change the extension of (.*) to (.*)")]
-        public void WhenIChangeTheExtension(string path, string newExtension) {
+        public void ChangeTheExtension(string path, string newExtension) {
             var oldPath = Path.Current.Combine(path.Split('\\'));
             oldPath.Move(p => p.ChangeExtension(newExtension));
         }
 
-        [When(@"I delete file ([^\s]*)")]
-        public void WhenIDeleteFile(string path) {
+        public void DeleteFile(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Delete();
         }
 
-        [When(@"I delete directory ([^\s]*)")]
-        public void WhenIDeleteDirectory(string path) {
+        public void DeleteDirectory(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Delete(true);
         }
 
-        [When("I decrypt (.*)")]
-        public void WhenIDecrypt(string path) {
+        public void Decrypt(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Decrypt();
         }
 
-        [When("I encrypt (.*)")]
-        public void WhenIEncrypt(string path) {
+        public void Encrypt(string path) {
             Path.Current.Combine(path.Split('\\'))
                 .Encrypt();
         }
 
-        [When("I enumerate directories twice")]
-        public void WhenIEnumerateDirectoriesTwice() {
+        public void EnumerateDirectoriesTwice() {
             var dirs = _path.Directories();
             var dirEnum = dirs.GetEnumerator();
             var dirList = new List<string>();
@@ -481,8 +420,7 @@ using System.Globalization;
             _resultString = String.Join(", ", dirList.ToArray());
         }
 
-        [When(@"I grep for ""(.*)""")]
-        public void WhenIGrepFor(string regularExpression) {
+        public void GrepFor(string regularExpression) {
             var matches = new List<string>();
             Path.Current.AllFiles().Grep(
                 regularExpression, (p, match, content) => matches.Add(
@@ -491,30 +429,26 @@ using System.Globalization;
             _resultString = string.Join(", ", matches);
         }
 
-        [When(@"I grep for ""(.*)"" in ([^\s]*)")]
-        public void WhenIGrepIn(string regularExpression, string path) {
+        public void GrepIn(string regularExpression, string path) {
             var matches = new List<int>();
             _path.Combine(path.Split('\\')).Grep(
                 regularExpression, (p, match, content) => matches.Add(match.Index));
             _resultString = string.Join(", ", matches);
         }
 
-        [When(@"I write ""(.*)"" to ([^\s]*) using ([^\s]*) encoding")]
-        public void WhenIWriteEncoded(string content, string path, string encodingName) {
+        public void WriteEncoded(string content, string path, string encodingName) {
             var encoding = Encoding.GetEncoding(encodingName);
             _path.Combine(path.Split('\\')).Write(content, encoding);
         }
 
-        [When(@"I use a Lambda to copy text files into ([^\s]*)")]
-        public void WhenIUseALambdaToCopyTextFiles(string destination) {
+        public void UseALambdaToCopyTextFiles(string destination) {
             var files = _path.AllFiles();
             _result = files.Copy(
                 p =>
                 p.Extension == ".txt" ? _path.Combine(destination, p.FileName) : null);
         }
 
-        [When(@"I use a Lambda to move text files into ([^\s]*)")]
-        public void WhenIUseALambdaToMoveTextFiles(string destination) {
+        public void UseALambdaToMoveTextFiles(string destination) {
             var files = _path.AllFiles();
             _result = files.Move(
                 p =>
@@ -522,8 +456,7 @@ using System.Globalization;
                 Overwrite.Always);
         }
 
-        [When(@"I write bytes ([^\s]*) to ([^\s]*)")]
-        public void WhenIWriteBytes(string hexContent, string path) {
+        public void WriteBytes(string hexContent, string path) {
             var content = new byte[hexContent.Length / 2];
             for (var i = 0; i < hexContent.Length; i += 2) {
                 content[i / 2] = byte.Parse(
@@ -533,18 +466,16 @@ using System.Globalization;
                 .Write(content);
         }
 
-        [Then(@"attributes (.*) should be set on ([^\s]*)")]
         public void ThenAttributesShouldBeSet(string attributeNames, string path) {
             var attrNames = attributeNames.Split(',');
             var fileAttributes = _path.Combine(path.Split('\\')).Attributes();
             foreach (var attrName in attrNames) {
-                Assert.AreNotEqual(0,
+                Assert.Equal((FileAttributes)0,
                     fileAttributes &
                     (FileAttributes)Enum.Parse(typeof (FileAttributes), attrName));
             }
         }
 
-        [Then("the resulting set should be (.*)")]
         public void ThenTheResultingSetShouldBe(string fileList) {
             var resultList = _result.Select(
                 p => (p.IsRooted ? p.MakeRelative() : p).ToString().Replace(
@@ -556,12 +487,10 @@ using System.Globalization;
                         new[] {',', ' '}, StringSplitOptions.RemoveEmptyEntries)));
         }
 
-        [Then(@"the resulting string should be ""(.*)""")]
         public void ThenTheResultingStringShouldBe(string resultString) {
             Assert.AreEqual(resultString, _resultString);
         }
 
-        [Then(@"the content of ([^\s]*) should be (.*)")]
         public void ThenTheContentOfFolderShouldBe(string folder, string fileList) {
             var folderPath = _path.Combine(folder);
             var files = folderPath.FileSystemEntries()

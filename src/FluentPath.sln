@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24613.1
+VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fluent.IO", "FluentPath\Fluent.IO.csproj", "{098E43F5-97C4-419E-B0BE-DCE7F568054B}"
 EndProject
@@ -18,6 +18,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{EACC1611-2FA9-4AF3-88A3-52A7D3396712}"
 	ProjectSection(SolutionItems) = preProject
 		..\FluentPath.nuspec = ..\FluentPath.nuspec
+		..\global.json = ..\global.json
 		..\license.txt = ..\license.txt
 		..\README.md = ..\README.md
 	EndProjectSection
