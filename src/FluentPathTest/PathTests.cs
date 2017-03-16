@@ -4,7 +4,6 @@
 
 using System;
 using System.Collections;
-using System.ComponentModel;
 using SystemIO = System.IO;
 using Fluent.IO;
 using Xunit;
@@ -17,33 +16,6 @@ namespace FluentPathTest {
             SystemIO.Path.GetPathRoot(SystemIO.Directory.GetCurrentDirectory());
         private readonly char _sep = SystemIO.Path.DirectorySeparatorChar;
         private readonly Path _baz = Path.Root.Combine("foo", "bar", "baz.txt");
-
-        [Fact]
-        public void CanConvertPathFromString() {
-            var converter = TypeDescriptor.GetConverter(typeof (Path));
-            var path = (Path)converter.ConvertFromString(_temp);
-            Assert.Equal(_temp, path.ToString());
-        }
-
-        [Fact]
-        public void CanConvertFromIntIsFalse() {
-            var converter = TypeDescriptor.GetConverter(typeof(Path));
-            Assert.False(converter.CanConvertFrom(typeof(int)));
-        }
-
-        [Fact]
-        public void CanConvertFromStringIsTrue() {
-            var converter = TypeDescriptor.GetConverter(typeof(Path));
-            Assert.True(converter.CanConvertFrom(typeof(string)));
-        }
-
-        [Fact]
-        public void ConvertFromIntThrows() {
-            var converter = TypeDescriptor.GetConverter(typeof(Path));
-            Assert.Throws(
-                typeof (NotSupportedException),
-                () => converter.ConvertFrom(0));
-        }
 
         [Fact]
         public void CanCreatePathFromString() {

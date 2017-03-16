@@ -1,11 +1,10 @@
-// Copyright © 2010-2015 Bertrand Le Roy.  All Rights Reserved.
+// Copyright © 2010-2017 Bertrand Le Roy.  All Rights Reserved.
 // This code released under the terms of the 
 // MIT License http://opensource.org/licenses/MIT
 
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -14,7 +13,6 @@ using System.Text.RegularExpressions;
 using SystemPath = System.IO.Path;
 
 namespace Fluent.IO {
-    [TypeConverter(typeof(PathConverter))]
     public class PathBase<T> : IEnumerable<T> where T : PathBase<T>, new() {
         private IEnumerable<string> _paths;
         private T _previousPaths;
