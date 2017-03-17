@@ -15,6 +15,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		..\README.md = ..\README.md
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fluent.IO.Windows", "Fluent.IO.Windows\Fluent.IO.Windows.csproj", "{A724042E-A66B-456B-A516-9EAA7F78F17A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,18 @@ Global
 		{95EAFD8A-4E12-4AB9-A539-B67C2F8D20C1}.Release|Mixed Platforms.Build.0 = Release|Any CPU
 		{95EAFD8A-4E12-4AB9-A539-B67C2F8D20C1}.Release|x86.ActiveCfg = Release|Any CPU
 		{95EAFD8A-4E12-4AB9-A539-B67C2F8D20C1}.Release|x86.Build.0 = Release|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Debug|x86.Build.0 = Debug|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Release|x86.ActiveCfg = Release|Any CPU
+		{A724042E-A66B-456B-A516-9EAA7F78F17A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
