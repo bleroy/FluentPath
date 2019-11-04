@@ -42,8 +42,8 @@ namespace Fluent.IO.Windows
             var firstPath = path.ToStringArray().FirstOrDefault();
             if (firstPath == null) throw new InvalidOperationException("Can't get access control from an empty path.");
             return Directory.Exists(firstPath)
-                ? Directory.GetAccessControl(firstPath)
-                : (FileSystemSecurity)File.GetAccessControl(firstPath);
+                ? new DirectoryInfo(firstPath).GetAccessControl()
+                : (FileSystemSecurity)new FileInfo(firstPath).GetAccessControl();
         }
 
         /// <summary>
@@ -65,8 +65,8 @@ namespace Fluent.IO.Windows
             {
                 action(new Path(p, path),
                     Directory.Exists(p)
-                        ? Directory.GetAccessControl(p)
-                        : (FileSystemSecurity)File.GetAccessControl(p)
+                        ? new DirectoryInfo(p).GetAccessControl()
+                        : (FileSystemSecurity)new FileInfo(p).GetAccessControl()
                     );
             }
             return path;
@@ -90,12 +90,12 @@ namespace Fluent.IO.Windows
             {
                 if (Directory.Exists(p))
                 {
-                    Directory.SetAccessControl(p,
+                    new DirectoryInfo(p).SetAccessControl(
                         (DirectorySecurity)securityFunction(new Path(p, path)));
                 }
                 else
                 {
-                    File.SetAccessControl(p,
+                    new FileInfo(p).SetAccessControl(
                         (FileSecurity)securityFunction(new Path(p, path)));
                 }
             }

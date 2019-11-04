@@ -2,31 +2,31 @@
 // This code released under the terms of the 
 // MIT License http://opensource.org/licenses/MIT
 
-using System.IO;
-using System.Security.AccessControl;
-using System.Security.Principal;
-
-namespace FluentPathSpec {
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using SystemIO = System.IO;
 using Fluent.IO;
 using Fluent.IO.Windows;
-using NUnit.Framework;
-using TechTalk.SpecFlow;
-using System.Globalization;
+using Xunit;
 
-    [Binding]
-    public class FluentPathSteps {
+namespace FluentPathSpec
+{
+    public class FluentPathSpec
+    {
+        private Path _testRoot;
         private Path _path;
         private Path _result;
         private string _resultString;
+        private Exception _exception;
 
-        [Given("a clean test directory")]
-        public void GivenACleanDirectory() {
+        public void start_with_a_clean_directory()
+        {
             // foo.txt
             // bar/
             //   baz.txt
@@ -37,34 +37,39 @@ using System.Globalization;
             //   baz.txt
             //   binary.bin
             //   subsub/
-            _path = new Path(SystemIO.Path.GetTempPath())
-                .CreateSubDirectory("FluentPathSpecs")
+            string randomFolder = SystemIO.Path.GetRandomFileName();
+            _path = _testRoot = new Path(SystemIO.Path.GetTempPath())
+                .CreateSubDirectory(randomFolder)
                 .MakeCurrent();
             _path
                 .FileSystemEntries()
                 .Delete(true);
             _path.CreateFile("foo.txt", "This is a text file named foo.");
-            var bar = _path.CreateSubDirectory("bar");
+            Path bar = _path.CreateSubDirectory("bar");
             bar.CreateFile("baz.txt", "bar baz")
                .LastWriteTime(DateTime.Now.AddSeconds(-2));
             bar.CreateFile("notes.txt", "This is a text file containing notes.");
-            var barbar = bar.CreateSubDirectory("bar");
+            Path barbar = bar.CreateSubDirectory("bar");
             barbar.CreateFile("deep.txt", "Deep thoughts");
-            var sub = _path.CreateSubDirectory("sub");
+            Path sub = _path.CreateSubDirectory("sub");
             sub.CreateSubDirectory("subsub");
             sub.CreateFile("baz.txt", "sub baz")
                .LastWriteTime(DateTime.Now);
             sub.CreateFile("binary.bin",
-                new byte[] {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0xFF});
+                new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0xFF });
         }
 
-        [When(@"I add a permission to ([^\s]*)")]
-        public void WhenIAddPermission(string path) {
-// ReSharper disable PossibleNullReferenceException
+        public void cleanup_test_files()
+        {
+            _testRoot.Parent().MakeCurrent();
+            _testRoot.Delete(true);
+        }
+
+        public void add_permissions_to(string path)
+        {
             SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
-// ReSharper restore PossibleNullReferenceException
-            var filePath = _path.Combine(path.Split('\\'));
-            var accessControl = filePath.AccessControl();
+            Path filePath = _path.CombineWithWindowsPath(path);
+            FileSystemSecurity accessControl = filePath.AccessControl();
             accessControl.AddAccessRule(
                     new FileSystemAccessRule(
                         user, FileSystemRights.Read, InheritanceFlags.None,
@@ -73,416 +78,582 @@ using System.Globalization;
             filePath.AccessControl(accessControl);
         }
 
-        [When("I recursively select (.*)")]
-        public void WhenIRecursivelySelect(string searchPattern) {
-            _result = _path.FileSystemEntries(searchPattern, true);
-        }
+        public void recursively_select(string searchPattern)
+            => _result = _path.FileSystemEntries(searchPattern, true);
 
-        [When("I select subdirectories")]
-        public void WhenISelectSubdirectories() {
-            _result = _path.Directories();
-        }
+        public void select_subdirectories() => _result = _path.Directories();
 
-        [When("I select deep subdirectories")]
-        public void WhenISelectDeepSubdirectories() {
-            _result = _path.Directories("*", true);
-        }
+        public void select_deep_subdirectories() => _result = _path.Directories("*", true);
 
-        [When("I search for subdirectories with pattern (.*)")]
-        public void WhenISelectDeepSubdirectoriesWithAPattern(string pattern) {
-            _result = _path.Directories(pattern, true);
-        }
+        public void select_deep_subdirectories_with_the_pattern(string pattern)
+            => _result = _path.Directories(pattern, true);
 
-        [When("I search for subdirectories with a condition")]
-        public void WhenISelectSubdirectoriesWithACondition() {
-            _result = _path.Directories(p => p.FileName.StartsWith("sub"));
-        }
+        public void use_a_predicate_to_select_subdirectories_with_a_name_starting_with(string prefix)
+            => _result = _path.Directories(p => p.FileName.StartsWith(prefix)); // = "sub"
 
-        [When("I search for deep subdirectories with a condition")]
-        public void WhenISelectDeepSubdirectoriesWithACondition() {
-            _result = _path.Directories(p => p.FileName.StartsWith("sub"), true);
-        }
+        public void use_a_predicate_to_select_deep_subdirectories_with_a_name_starting_with(string prefix)
+            => _result = _path.Directories(p => p.FileName.StartsWith(prefix), true);
 
-        [When("I select all files")]
-        public void WhenISelectAllFiles() {
-            _result = _path.AllFiles();
-        }
+        public void select_all_files() => _result = _path.AllFiles();
 
-        [When("I select files")]
-        public void WhenISelectFiles() {
-            _result = _path.Files();
-        }
+        public void select_files() => _result = _path.Files();
 
-        [When("I search for files with a condition")]
-        public void WhenISearchForFilesWithACondition() {
-            _result = _path.Files(f => f.Extension == ".txt");
-        }
+        public void use_a_predicate_to_search_for_files_with_extension(string extension)
+            => _result = _path.Files(f => f.Extension == extension); // ".txt"
 
-        [When("I search for deep files with a condition")]
-        public void WhenISearchForDeepFilesWithACondition() {
-            _result = _path.Files(f => f.Extension == ".txt", true);
-        }
+        public void use_a_predicate_to_search_for_deep_files_with_extension(string extension)
+            => _result = _path.Files(f => f.Extension == extension, true);
 
-        [When("I search for deep files with pattern (.*)")]
-        public void WhenISearchForDeepFilesWithPattern(string pattern) {
-            _result = _path.Files(pattern, true);
-        }
+        public void search_for_deep_files_with_pattern(string pattern)
+            => _result = _path.Files(pattern, true);
 
-        [When(@"I select files with extensions (.*)")]
-        public void WhenISelectFilesWithExtension(string extensions) {
-            _result = _path.Files("*", true)
-                .WhereExtensionIs(
-                    extensions.Split(',').Select(s => s.Trim()).ToArray());
-        }
+        public void select_files_with_extensions(params string[] extensions)
+            => _result = _path.Files("*", true)
+                .WhereExtensionIs(extensions.Select(s => s.Trim()).ToArray());
 
-        [When("I select file system entries")]
-        public void WhenISelectFileSystemEntries() {
-            _result = _path.FileSystemEntries();
-        }
+        public void select_file_system_entries() => _result = _path.FileSystemEntries();
 
-        [When("I search for file system entries with a condition")]
-        public void WhenISearchForFileSystemEntriesWithACondition() {
-            _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1);
-        }
+        public void search_for_file_system_entries_with_an_a_in_the_name()
+            => _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1);
 
-        [When("I search for deep file system entries with a condition")]
-        public void WhenISearchForDeepFileSystemEntriesWithACondition() {
-            _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1, true);
-        }
+        public void search_for_deep_file_system_entries_with_an_a_in_the_name()
+            => _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1, true);
 
-        [When("I search for deep file system entries with pattern (.*)")]
-        public void WhenISearchForDeepFileSystemEntriesWithPattern(string pattern) {
-            _result = _path.FileSystemEntries(pattern, true);
-        }
+        public void search_for_deep_file_system_entries_using_the_pattern(string pattern)
+            => _result = _path.FileSystemEntries(pattern, true);
 
-        [When(@"I set attributes (.*) on ([^\s]*)")]
-        public void WhenISetAttributes(string attributeNames, string path) {
-            var attrNames = attributeNames.Split(',');
-            var attributes =
-                attrNames.Aggregate<string, FileAttributes>(0,
-                    (current, attrName) => current |
-                    (FileAttributes)Enum.Parse(typeof (FileAttributes), attrName));
-            _path.Combine(path.Split('\\')).Attributes(attributes);
-        }
 
-        [When(@"I set (.*) time on ([^\s]*) to (.*)")]
-        public void WhenISetTime(string type, string path, string dateString) {
-            var combinedPath = _path.Combine(path.Split('\\'));
-            var date = DateTime.Parse(dateString, CultureInfo.InvariantCulture);
-            switch (type) {
-                case "creation":
-                    combinedPath.CreationTime(date);
-                    break;
-                case "UTC creation":
-                    combinedPath.CreationTimeUtc(date);
-                    break;
-                case "last access":
-                    combinedPath.LastAccessTime(date);
-                    break;
-                case "UTC last access":
-                    combinedPath.LastAccessTimeUtc(date);
-                    break;
-                case "last write":
-                    combinedPath.LastWriteTime(date);
-                    break;
-                case "UTC last write":
-                    combinedPath.LastWriteTimeUtc(date);
-                    break;
+        public class I_set_attributes_result
+        {
+            private readonly Path _path;
+            private readonly string[] _attributeNames;
+
+            public I_set_attributes_result(Path path, string[] attributeNames)
+            {
+                _path = path;
+                _attributeNames = attributeNames;
+            }
+
+            public void on(string path)
+            {
+                SystemIO.FileAttributes attributes =
+                    _attributeNames.Aggregate<string, SystemIO.FileAttributes>(0,
+                        (current, attrName) => current |
+                        (SystemIO.FileAttributes)Enum.Parse(typeof(SystemIO.FileAttributes), attrName));
+                _path.CombineWithWindowsPath(path).Attributes(attributes);
             }
         }
 
-        [When("I copy (.*) to (.*)")]
-        public void WhenICopy(string from, string to) {
-            var src = _path.Combine(from);
-            src.Copy(_path.Combine(to.Split('\\')));
-        }
+        public I_set_attributes_result set_attributes(params string[] attributeNames)
+            => new I_set_attributes_result(_path, attributeNames);
 
-        [When("I overwrite (.*) copy with (.*) to (.*)")]
-        public void WhenICopyWithOverwrite(string overwriteMode, string from, string to) {
-            var overwrite = (Overwrite)Enum.Parse(typeof(Overwrite), overwriteMode, true);
-            var src = _path.Combine(from);
-            try {
-                src.Copy(_path.Combine(to.Split('\\')), overwrite);
+        public class I_set_time_of_result
+        {
+            private readonly Path _path;
+            private readonly type_of_time_event _typeOfTimeEvent;
+
+            public I_set_time_of_result(Path path, type_of_time_event typeOfTimeEvent)
+            {
+                _path = path;
+                _typeOfTimeEvent = typeOfTimeEvent;
             }
-            catch(Exception e) {
-                ScenarioContext.Current["Exception"] = e;
+
+            public I_set_time_of_result_to_result to(DateTime date)
+                => new I_set_time_of_result_to_result(_path, _typeOfTimeEvent, date);
+        }
+
+        public class I_set_time_of_result_to_result
+        {
+            private readonly Path _path;
+            private readonly type_of_time_event _typeOfTimeEvent;
+            private readonly DateTime _date;
+
+            public I_set_time_of_result_to_result(Path path, type_of_time_event typeOfTimeEvent, DateTime date)
+            {
+                _path = path;
+                _typeOfTimeEvent = typeOfTimeEvent;
+                _date = date;
+            }
+
+            public void on(string path)
+            {
+                Path combinedPath = _path.CombineWithWindowsPath(path);
+                switch (_typeOfTimeEvent)
+                {
+                    case type_of_time_event.creation:
+                        combinedPath.CreationTime(_date);
+                        break;
+                    case type_of_time_event.UTC_creation:
+                        combinedPath.CreationTimeUtc(_date);
+                        break;
+                    case type_of_time_event.last_access:
+                        combinedPath.LastAccessTime(_date);
+                        break;
+                    case type_of_time_event.UTC_last_access:
+                        combinedPath.LastAccessTimeUtc(_date);
+                        break;
+                    case type_of_time_event.last_write:
+                        combinedPath.LastWriteTime(_date);
+                        break;
+                    case type_of_time_event.UTC_last_write:
+                        combinedPath.LastWriteTimeUtc(_date);
+                        break;
+                }
             }
         }
 
-        [When("I copy (.*) with a transform")]
-        public void WhenICopyWithATransform(string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Copy(
-                    p => p.Parent().Combine(
-                        p.FileNameWithoutExtension + p.FileNameWithoutExtension + p.Extension));
-        }
+        public I_set_time_of_result set_time_of(type_of_time_event type)
+            => new I_set_time_of_result(_path, type);
 
-        [When("I recursively copy (.*) to (.*)")]
-        public void WhenIRecursivelyCopy(string from, string to) {
-            var src = _path.Combine(from);
-            src.Copy(_path.Combine(to.Split('\\')), Overwrite.Never, true);
-        }
+        public class I_copy_from_result
+        {
+            private readonly Path _path;
+            private readonly string _from;
 
-        [When("I move (.*) to (.*)")]
-        public void WhenIMove(string from, string to) {
-            var src = _path.Combine(from);
-            src.Move((string)_path.Combine(to.Split('\\')));
-        }
-
-        [When("I overwrite (.*) move with (.*) to (.*)")]
-        public void WhenIMoveWithOverwrite(string overwriteMode, string from, string to) {
-            var overwrite = (Overwrite)Enum.Parse(typeof(Overwrite), overwriteMode, true);
-            var src = _path.Combine(from);
-            try {
-                src.Move((string)_path.Combine(to.Split('\\')), overwrite);
+            public I_copy_from_result(Path path, string from)
+            {
+                _path = path;
+                _from = from;
             }
-            catch (Exception e) {
-                ScenarioContext.Current["Exception"] = e;
+
+            public void to(string to)
+            {
+                Path src = _path.Combine(_from);
+                src.Copy(_path.CombineWithWindowsPath(to));
             }
         }
 
-        [When("I move (.*) with a transform")]
-        public void WhenIMoveWithATransform(string path) {
-            Path.Current.Combine(path.Split('\\'))
+        public I_copy_from_result copy_from(string from) => new I_copy_from_result(_path, from);
+
+
+        public class I_use_overwrite_mode_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly Overwrite _overwrite;
+
+            public I_use_overwrite_mode_result(FluentPathSpec that, Overwrite overwrite)
+            {
+                _that = that;
+                _overwrite = overwrite;
+            }
+
+            public to_copy_from_result to_copy_from(string from)
+                => new to_copy_from_result(_that, _overwrite, from);
+        }
+
+        public class to_copy_from_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly Overwrite _overwrite;
+            private readonly string _from;
+
+            public to_copy_from_result(FluentPathSpec that, Overwrite overwrite, string from)
+            {
+                _that = that;
+                _overwrite = overwrite;
+                _from = from;
+            }
+
+            public void to(string to)
+            {
+                Path src = _that._path.Combine(_from);
+                if (_overwrite == Overwrite.Throw)
+                {
+                    try
+                    {
+                        src.Copy(_that._path.CombineWithWindowsPath(to), _overwrite);
+                    }
+                    catch (Exception e)
+                    {
+                        _that._exception = e;
+                    }
+                }
+                else
+                {
+                    src.Copy(_that._path.CombineWithWindowsPath(to), _overwrite);
+                }
+            }
+        }
+
+        public I_use_overwrite_mode_result use_overwrite_mode(Overwrite overwrite)
+            => new I_use_overwrite_mode_result(this, overwrite);
+
+        public class I_copy_result
+        {
+            private string _path { get; }
+
+            public I_copy_result(string path) => _path = path;
+
+            public void with_a_doubled_filename()
+            {
+                Path.Current.CombineWithWindowsPath(_path)
+                    .Copy(
+                        p => p.Parent().Combine(
+                            p.FileNameWithoutExtension + p.FileNameWithoutExtension + p.Extension));
+            }
+        }
+        public I_copy_result copy(string path) => new I_copy_result(path);
+
+
+        public class I_make_a_deep_copy_from_result
+        {
+            private readonly Path _path;
+            private readonly string _from;
+
+            public I_make_a_deep_copy_from_result(Path path, string from)
+            {
+                _path = path;
+                _from = from;
+            }
+
+            public void to(string to)
+            {
+                Path src = _path.Combine(_from);
+                src.Copy(_path.CombineWithWindowsPath(to), Overwrite.Never, true);
+            }
+        }
+
+        public I_make_a_deep_copy_from_result make_a_deep_copy_from(string from)
+            => new I_make_a_deep_copy_from_result(_path, from);
+
+        public class I_move_from_result
+        {
+            private readonly Path _path;
+            private readonly string _from;
+
+            public I_move_from_result(Path path, string from)
+            {
+                _path = path;
+                _from = from;
+            }
+
+            public void to(string to)
+            {
+                Path src = _path.Combine(_from);
+                src.Move((string)_path.CombineWithWindowsPath(to));
+            }
+        }
+
+        public I_move_from_result move_from(string from)
+            => new I_move_from_result(_path, from);
+
+        public class I_use_overwrite_mode_to_move_result
+        {
+            private readonly Path _path;
+            private readonly Overwrite _overwrite;
+
+            public I_use_overwrite_mode_to_move_result(Path path, Overwrite overwrite)
+            {
+                _path = path;
+                _overwrite = overwrite;
+            }
+
+            public to_move_from_result to_move_from(string from)
+                => new to_move_from_result(_path, _overwrite, from);
+        }
+
+        public class to_move_from_result
+        {
+            private readonly Path _path;
+            private readonly Overwrite _overwrite;
+            private readonly string _from;
+
+            public to_move_from_result(Path path, Overwrite overwrite, string from)
+            {
+                _path = path;
+                _overwrite = overwrite;
+                _from = from;
+            }
+
+            public void to(string to)
+            {
+                Path src = _path.Combine(_from);
+                Assert.Throws<Exception>(() =>
+                {
+                    src.Move((string)_path.CombineWithWindowsPath(to), _overwrite);
+                });
+            }
+        }
+
+        public I_use_overwrite_mode_to_move_result move_using_overwrite_mode(Overwrite overwrite)
+            => new I_use_overwrite_mode_to_move_result(_path, overwrite);
+
+        public void move_while_doubling_the_filename(string path)
+            => Path.Current.CombineWithWindowsPath(path)
                 .Move(
                     p => p.Parent().Combine(
                         p.FileNameWithoutExtension + p.FileNameWithoutExtension +
                         p.Extension));
+
+        public void open_and_read(string path)
+            => Path.Current
+                .CombineWithWindowsPath(path)
+                .Open(s =>
+                {
+                    using var reader = new SystemIO.StreamReader(s);
+                    _resultString = reader.ReadToEnd();
+                });
+
+        public class I_write_back_to_result
+        {
+            private readonly string _relativePath;
+
+            public I_write_back_to_result(string relativePath) => _relativePath = relativePath;
+
+            public void its_uppercased_content_and_append_some_constant_and_the_filename()
+                => Path.Current
+                    .CombineWithWindowsPath(_relativePath)
+                    .Process((p, s) => s.ToUpperInvariant() + " - processed " + p.FileName);
         }
 
-        [When(@"I open ([^\s]*)")]
-        public void WhenIOpen(string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Open(s => {
-                          using (var reader = new StreamReader(s)) {
-                              _resultString = reader.ReadToEnd();
-                          }
-                      });
-        }
+        public I_write_back_to_result write_back_to(string relativePath)
+            => new I_write_back_to_result(relativePath);
 
-        [When(@"I process the path and content of (.*)")]
-        public void WhenIProcessThePathAndContentOf(string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Process((p, s) => s.ToUpperInvariant() + " - processed " + p.FileName);
-        }
-
-        [When(@"I process the content of (.*)")]
-        public void WhenIProcessTheContentOf(string path) {
-            Path.Current.Combine(path.Split('\\'))
+        public void append_processed_to_the_uppercased_content_of(string path)
+            => Path.Current
+                .CombineWithWindowsPath(path)
                 .Process(s => s.ToUpperInvariant() + " - processed");
+
+        public class I_append_result
+        {
+            private readonly string _text;
+
+            public I_append_result(string text) => _text = text;
+
+            public void to(string relativePath)
+                => Path.Current.CombineWithWindowsPath(relativePath).Write(_text, true);
         }
 
-        [When(@"I append ""(.*)"" to ([^\s]*)")]
-        public void WhenIAppend(string text, string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Write(text, true);
+        public I_append_result append(string text) => new I_append_result(text);
+
+        public class I_use_encoding
+        {
+            private readonly Path _path;
+            private readonly Encoding _encoding;
+
+            public I_use_encoding(Path path, Encoding encoding)
+            {
+                _path = path;
+                _encoding = encoding;
+            }
+
+            public I_append_result_to_write_result to_write(string content)
+                => new I_append_result_to_write_result(_path, _encoding, content);
         }
 
-        [When(@"I append ""(.*)"" to ([^\s]*) using ([^\s]*) encoding")]
-        public void WhenIAppendEncoded(string content, string path, string encodingName) {
-            var encoding = Encoding.GetEncoding(encodingName);
-            _path.Combine(path.Split('\\')).Write(
-                content, encoding, true);
+        public class I_append_result_to_write_result
+        {
+            private readonly Path _path;
+            private readonly Encoding _encoding;
+            private readonly string _content;
+
+            public I_append_result_to_write_result(Path path, Encoding encoding, string content)
+            {
+                _path = path;
+                _encoding = encoding;
+                _content = content;
+            }
+
+            public void to(string relativePath)
+                => _path.CombineWithWindowsPath(relativePath).Write(_content, _encoding, true);
         }
 
-        [When(@"I replace the text of (.*) with ""(.*)""")]
-        public void WhenIReplace(string path, string text) {
-            Path.Current.Combine(path.Split('\\'))
-                .Write(text);
+        public I_use_encoding use_encoding(Encoding encoding)
+            => new I_use_encoding(_path, encoding);
+
+        public class I_replace_result
+        {
+            private readonly string _relativePath;
+
+            public I_replace_result(string relativePath) => _relativePath = relativePath;
+
+            public void with(string text)
+                => Path.Current.CombineWithWindowsPath(_relativePath).Write(text);
         }
 
-        [When(@"I binary process the content of (.*)")]
-        public void WhenIBinaryProcessTheContentOf(string path) {
-            Path.Current.Combine(path.Split('\\'))
+        public I_replace_result replace(string relativePath)
+            => new I_replace_result(relativePath);
+
+        public void process_the_binary_content_of(string path)
+            => Path.Current.CombineWithWindowsPath(path)
                 .Process(
-                    ba => {
-                        for (var i = 0; i < ba.Length; i++) {
+                    ba =>
+                    {
+                        for (var i = 0; i < ba.Length; i++)
+                        {
                             ba[i] ^= 0xFF;
                         }
                         return ba;
                     }
                 );
-        }
 
-        [When(@"I binary process the path and content of (.*)")]
-        public void WhenIBinaryProcessThePathAndContentOf(string path) {
-            Path.Current.Combine(path.Split('\\'))
+        public void process_the_binary_content_and_path_of(string path)
+            => Path.Current.CombineWithWindowsPath(path)
                 .Process(
-                    (p, ba) => {
-                        for (var i = 0; i < ba.Length; i++) {
+                    (p, ba) =>
+                    {
+                        for (var i = 0; i < ba.Length; i++)
+                        {
                             ba[i] ^= 0xFF;
                         }
                         _resultString = p.FileName;
                         return ba;
                     }
                 );
-        }
 
-        [When("I get the path for (.*)")]
-        public void WhenIGetThePathFor(string path) {
-            _path = _path.Combine(path.Split('\\'));
-        }
+        public void get_the_path_for(string path) => _path = _path.CombineWithWindowsPath(path);
 
-        [When("I create that directory")]
-        public void WhenICreateThatDirectory() {
-            _path.CreateDirectory();
-        }
+        public void create_that_directory() => _path.CreateDirectory();
 
-        [When("I create a directory from (.*)")]
-        public void WhenICreateADirectoryFrom(string path) {
-            Path.CreateDirectory(
-                Path.Current.Combine(path.Split('\\')).FullPath);
-        }
+        public void create_a_directory_with_relative_path(string path)
+            => Path.CreateDirectory(Path.Current.CombineWithWindowsPath(path).FullPath);
 
-        [When("I open (.*) and read the contents")]
-        public void WhenIOpenFilesAndReadContents(string fileList) {
-            var files =
-                new Path(
-                    fileList.Split(
-                        new[] {',', ' '}, StringSplitOptions.RemoveEmptyEntries));
+        public void use_a_stream_to_concatenate_the_contents_of(params string[] filePaths)
+        {
+            var files = new Path(filePaths);
             files.Open(
-                s => {
-                    using (var reader = new StreamReader(s)) {
-                        _resultString += reader.ReadToEnd();
-                    }
+                s =>
+                {
+                    using var reader = new SystemIO.StreamReader(s);
+                    _resultString += reader.ReadToEnd();
                 });
         }
 
-        [When("I open (.*) and read the path and contents")]
-        public void WhenIOpenFilesAndReadPathAndContents(string fileList) {
-            var files =
-                new Path(
-                    fileList.Split(
-                        new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
+        public void use_a_stream_to_read_path_and_content_for_each_of(params string[] filePaths)
+        {
+            var files = new Path(filePaths);
             files.Open(
-                (s, p) => {
-                    using (var reader = new StreamReader(s)) {
-                        _resultString += p.ToString() + ":" + reader.ReadToEnd();
-                    }
+                (s, p) =>
+                {
+                    using var reader = new SystemIO.StreamReader(s);
+                    _resultString += p.ToString() + ":" + reader.ReadToEnd();
                 });
         }
 
-        [When("I read the contents of (.*)")]
-        public void WhenIReadContents(string fileList) {
-            var files =
-                new Path(
-                    fileList.Split(
-                        new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
-            files.Read(
-                s => {_resultString += s;});
+        public void concatenate_the_contents_of(params string[] filePaths)
+        {
+            var files = new Path(filePaths);
+            files.Read(s => { _resultString += s; });
         }
 
-        [When("I read the path and contents of (.*)")]
-        public void WhenIReadPathAndContents(string fileList) {
-            var files =
-                new Path(
-                    fileList.Split(
-                        new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries));
-            files.Read(
-                (s, p) => {
-                    _resultString += p.ToString() + ":" + s;
-                });
+        public void read_path_and_content_for_each_of(params string[] filePaths)
+        {
+            var files = new Path(filePaths);
+            files.Read((s, p) => _resultString += p.ToString() + ":" + s);
         }
 
-        [When(@"I use a Lambda to create directories with the same names as file in ([^\s]*)")]
-        public void WhenIUseALambdaToCreateDirectoriesUnder(string path) {
-            _result = _path.Combine(path.Split('\\'))
+        public void use_a_lambda_to_create_directories_with_the_same_names_as_each_file_under(string path)
+            => _result = _path
+                .CombineWithWindowsPath(path)
                 .AllFiles()
                 .CreateDirectories(p => p.FileNameWithoutExtension);
+
+        public class I_create_a_subdirectory_with_name_result
+        {
+            private readonly string _subdirectoryName;
+
+            public I_create_a_subdirectory_with_name_result(string subdirectoryName)
+                => _subdirectoryName = subdirectoryName;
+
+            public void under(string path)
+                => Path.Current.CombineWithWindowsPath(path).CreateSubDirectory(_subdirectoryName);
+
+            public void under(params string[] targetDirectoryNames)
+                => new Path(targetDirectoryNames).CreateDirectories(_subdirectoryName);
         }
 
-        [When("I create a (.*) subdirectory from (.*)")]
-        public void WhenICreateASubdirectory(string subdirectoryName, string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .CreateSubDirectory(subdirectoryName);
-        }
+        public I_create_a_subdirectory_with_name_result create_a_subdirectory_with_name(string subdirectoryName)
+            => new I_create_a_subdirectory_with_name_result(subdirectoryName);
 
-        [When(@"I create ([^\s]*) subdirectories under (.*)")]
-        public void WhenICreateSubDirectoriesUnder(string directoryName, string targetDirectoryNames) {
-            var targets =
-                new Path(
-                    targetDirectoryNames.Split(
-                        new[] {',', ' '}, StringSplitOptions.RemoveEmptyEntries));
-            targets.CreateDirectories(directoryName);
-        }
 
-        [When(@"I create a (.*) text file with the text ""(.*)""")]
-        public void WhenICreateATextFileWithText(string path, string content) {
-            Path.Current.CreateFiles(
-                p => (Path)path.Replace('\\', SystemIO.Path.DirectorySeparatorChar),
-                p => content);
-        }
+        public class I_create_a_file_result
+        {
+            private readonly string _path;
 
-        [When(@"I create a (.*) encoded (.*) file with the text ""(.*)""")]
-        public void WhenICreateAnEncodedTextFileWithText(string encodingName, string path, string content) {
-            var encoding = Encoding.GetEncoding(encodingName);
-            Path.Current.CreateFiles(
-                p => (Path)path.Replace('\\', SystemIO.Path.DirectorySeparatorChar),
-                p => content,
-                encoding);
-        }
+            public I_create_a_file_result(string path) => _path = path;
 
-        [When("I create a (.*) binary file with (.*)")]
-        public void WhenICreateABinaryFileWith(string path, string hexContent) {
-            var content = new byte[hexContent.Length / 2];
-            for (var i = 0; i < hexContent.Length; i += 2 ) {
-                content[i/2] = byte.Parse(
-                    hexContent.Substring(i, 2), NumberStyles.HexNumber);
+            public void with_content(string content)
+                => Path.Current.CreateFiles(
+                    p => _path.ToCrossPlatformPath(),
+                    p => content);
+
+            public void with_binary_content(string hexContent)
+            {
+                byte[] content = hexContent.ToBytes();
+                Path.Current.CreateFiles(
+                    p => _path.ToCrossPlatformPath(),
+                    p => content);
             }
-            Path.Current.CreateFiles(
-                p => (Path)path.Replace('\\', SystemIO.Path.DirectorySeparatorChar),
-                p => content);
+
+            public I_create_file_with_encoding_result and_use_encoding(Encoding encoding)
+                => new I_create_file_with_encoding_result(_path, encoding);
         }
 
-        [When("I change the extension of (.*) to (.*)")]
-        public void WhenIChangeTheExtension(string path, string newExtension) {
-            var oldPath = Path.Current.Combine(path.Split('\\'));
-            oldPath.Move(p => p.ChangeExtension(newExtension));
+        public class I_create_file_with_encoding_result
+        {
+            private readonly string _path;
+            private readonly Encoding _encoding;
+
+            public I_create_file_with_encoding_result(string path, Encoding encoding)
+            {
+                _path = path;
+                _encoding = encoding;
+            }
+
+            public void with_content(string content)
+                => Path.Current.CreateFiles(
+                    p => _path.ToCrossPlatformPath(),
+                    p => content,
+                    _encoding);
         }
 
-        [When(@"I delete file ([^\s]*)")]
-        public void WhenIDeleteFile(string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Delete();
+        public I_create_a_file_result create_a_file_under(string path)
+            => new I_create_a_file_result(path);
+
+        public class I_change_the_extension_result
+        {
+            private readonly string _path;
+
+            public I_change_the_extension_result(string path) => _path = path;
+
+            public void to(string newExtension)
+            {
+                Path oldPath = Path.Current.CombineWithWindowsPath(_path);
+                oldPath.Move(p => p.ChangeExtension(newExtension));
+            }
         }
 
-        [When(@"I delete directory ([^\s]*)")]
-        public void WhenIDeleteDirectory(string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Delete(true);
-        }
+        public void change_the_extension_of(string path) => new I_change_the_extension_result(path);
 
-        [When("I decrypt (.*)")]
-        public void WhenIDecrypt(string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Decrypt();
-        }
+        public void delete(string path) => Path.Current.CombineWithWindowsPath(path).Delete();
 
-        [When("I encrypt (.*)")]
-        public void WhenIEncrypt(string path) {
-            Path.Current.Combine(path.Split('\\'))
-                .Encrypt();
-        }
+        public void recursively_delete(string path) => Path.Current.CombineWithWindowsPath(path).Delete(true);
 
-        [When("I enumerate directories twice")]
-        public void WhenIEnumerateDirectoriesTwice() {
-            var dirs = _path.Directories();
-            var dirEnum = dirs.GetEnumerator();
+        public void decrypt(string path) => Path.Current.CombineWithWindowsPath(path).Decrypt();
+
+        public void encrypt(string path) => Path.Current.CombineWithWindowsPath(path).Encrypt();
+
+        public void enumerate_directories_twice()
+        {
+            Path dirs = _path.Directories();
+            IEnumerator<Path> dirEnum = dirs.GetEnumerator();
             var dirList = new List<string>();
-            while (dirEnum.MoveNext()) {
+            while (dirEnum.MoveNext())
+            {
                 dirList.Add(dirEnum.Current.FileName);
             }
             dirEnum = dirs.GetEnumerator();
             var dirEnumNonGeneric = (IEnumerator)dirEnum;
-            while (dirEnumNonGeneric.MoveNext()) {
+            while (dirEnumNonGeneric.MoveNext())
+            {
                 dirList.Add(((Path)dirEnumNonGeneric.Current).FileName);
             }
             dirList.Sort();
             _resultString = String.Join(", ", dirList.ToArray());
         }
 
-        [When(@"I grep for ""(.*)""")]
-        public void WhenIGrepFor(string regularExpression) {
+        public void grep_for(string regularExpression)
+        {
             var matches = new List<string>();
             Path.Current.AllFiles().Grep(
                 regularExpression, (p, match, content) => matches.Add(
@@ -491,125 +662,191 @@ using System.Globalization;
             _resultString = string.Join(", ", matches);
         }
 
-        [When(@"I grep for ""(.*)"" in ([^\s]*)")]
-        public void WhenIGrepIn(string regularExpression, string path) {
-            var matches = new List<int>();
-            _path.Combine(path.Split('\\')).Grep(
-                regularExpression, (p, match, content) => matches.Add(match.Index));
-            _resultString = string.Join(", ", matches);
+        public class I_grep_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly string _relativePath;
+
+            public I_grep_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
+
+            public void @for(string regularExpression)
+            {
+                var matches = new List<int>();
+                _that._path
+                    .CombineWithWindowsPath(_relativePath)
+                    .Grep(regularExpression, (p, match, content) => matches.Add(match.Index));
+                _that._resultString = string.Join(", ", matches);
+            }
         }
 
-        [When(@"I write ""(.*)"" to ([^\s]*) using ([^\s]*) encoding")]
-        public void WhenIWriteEncoded(string content, string path, string encodingName) {
-            var encoding = Encoding.GetEncoding(encodingName);
-            _path.Combine(path.Split('\\')).Write(content, encoding);
+        public I_grep_result grep_in(string relativePath)
+            => new I_grep_result(this, relativePath);
+
+        public class I_write_with_encoding_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly Encoding _encoding;
+
+            public I_write_with_encoding_result(FluentPathSpec that, Encoding encoding)
+            {
+                _that = that;
+                _encoding = encoding;
+            }
+
+            public I_write_with_encoding_to_result content(string content)
+                => new I_write_with_encoding_to_result(_that, _encoding, content);
         }
 
-        [When(@"I use a Lambda to copy text files into ([^\s]*)")]
-        public void WhenIUseALambdaToCopyTextFiles(string destination) {
-            var files = _path.AllFiles();
+        public class I_write_with_encoding_to_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly Encoding _encoding;
+            private readonly string _content;
+
+            public I_write_with_encoding_to_result(FluentPathSpec that, Encoding encoding, string content)
+            {
+                _that = that;
+                _encoding = encoding;
+                _content = content;
+            }
+
+            public void to(string path)
+                => _that._path.CombineWithWindowsPath(path).Write(_content, _encoding);
+        }
+
+        public I_write_with_encoding_result write_with_encoding(Encoding encoding)
+            => new I_write_with_encoding_result(this, encoding);
+
+        public void use_a_lambda_to_copy_all_text_files_to(string destination)
+        {
+            Path files = _path.AllFiles();
             _result = files.Copy(
                 p =>
                 p.Extension == ".txt" ? _path.Combine(destination, p.FileName) : null);
         }
 
-        [When(@"I use a Lambda to move text files into ([^\s]*)")]
-        public void WhenIUseALambdaToMoveTextFiles(string destination) {
-            var files = _path.AllFiles();
+        public void use_a_lambda_to_move_all_text_files_to(string destination)
+        {
+            Path files = _path.AllFiles();
             _result = files.Move(
                 p =>
                 p.Extension == ".txt" ? _path.Combine(destination, p.FileName) : null,
                 Overwrite.Always);
         }
 
-        [When(@"I write bytes ([^\s]*) to ([^\s]*)")]
-        public void WhenIWriteBytes(string hexContent, string path) {
-            var content = new byte[hexContent.Length / 2];
-            for (var i = 0; i < hexContent.Length; i += 2) {
-                content[i / 2] = byte.Parse(
-                    hexContent.Substring(i, 2), NumberStyles.HexNumber);
-            }
-            _path.Combine(path.Split('\\'))
-                .Write(content);
-        }
+        public class I_write_bytes_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly string _hexContent;
 
-        [Then(@"attributes (.*) should be set on ([^\s]*)")]
-        public void ThenAttributesShouldBeSet(string attributeNames, string path) {
-            var attrNames = attributeNames.Split(',');
-            var fileAttributes = _path.Combine(path.Split('\\')).Attributes();
-            foreach (var attrName in attrNames) {
-                Assert.AreNotEqual(0,
-                    fileAttributes &
-                    (FileAttributes)Enum.Parse(typeof (FileAttributes), attrName));
+            public I_write_bytes_result(FluentPathSpec that, string hexContent)
+            {
+                _that = that;
+                _hexContent = hexContent;
+            }
+
+            public void to(string path)
+            {
+                byte[] content = _hexContent.ToBytes();
+                _that._path.CombineWithWindowsPath(path).Write(content);
             }
         }
 
-        [Then("the resulting set should be (.*)")]
-        public void ThenTheResultingSetShouldBe(string fileList) {
-            var resultList = _result.Select(
-                p => (p.IsRooted ? p.MakeRelative() : p).ToString().Replace(
-                    SystemIO.Path.DirectorySeparatorChar, '\\')).ToList();
-            Assert.That(
-                resultList,
-                Is.EquivalentTo(
-                    fileList.Split(
-                        new[] {',', ' '}, StringSplitOptions.RemoveEmptyEntries)));
+        public I_write_bytes_result write_bytes(string hexContent)
+            => new I_write_bytes_result(this, hexContent);
+
+        public class then_the_attributes_on_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly string _relativePath;
+
+            public then_the_attributes_on_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
+
+            public void should_be(params string[] attributeNames)
+            {
+                SystemIO.FileAttributes fileAttributes =
+                    _that._path.CombineWithWindowsPath(_relativePath).Attributes();
+                foreach (string attrName in attributeNames)
+                {
+                    Assert.Equal((SystemIO.FileAttributes)0,
+                        fileAttributes &
+                        (SystemIO.FileAttributes)Enum.Parse(typeof(SystemIO.FileAttributes), attrName));
+                }
+            }
         }
 
-        [Then(@"the resulting string should be ""(.*)""")]
-        public void ThenTheResultingStringShouldBe(string resultString) {
-            Assert.AreEqual(resultString, _resultString);
+        public then_the_attributes_on_result attributes_on(string relativePath)
+            => new then_the_attributes_on_result(this, relativePath);
+
+        public void resulting_set_should_be(params string[] fileList)
+        {
+            string[] resultList = _result
+                .Select(p => (p.IsRooted ? p.MakeRelative() : p).ToWindowsPath())
+                .ToArray();
+            Assert.Equal(resultList, fileList);
         }
 
-        [Then(@"the content of ([^\s]*) should be (.*)")]
-        public void ThenTheContentOfFolderShouldBe(string folder, string fileList) {
-            var folderPath = _path.Combine(folder);
-            var files = folderPath.FileSystemEntries()
-                .MakeRelativeTo(folderPath)
-                .Select(
-                    p => p.ToString().Replace(SystemIO.Path.DirectorySeparatorChar, '\\'))
-                .ToList();
-            Assert.That(files,
-                Is.EquivalentTo(
-                    fileList.Split(
-                        new[] {',', ' '}, StringSplitOptions.RemoveEmptyEntries)));
+        public void resulting_string_should_be(string resultString)
+            => Assert.Equal(resultString, _resultString);
+
+        public class then_the_content_of_folder_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly string _relativePath;
+
+            public then_the_content_of_folder_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
+
+            public void should_be(params string[] fileList)
+            {
+                Path folderPath = _that._path.Combine(_relativePath);
+                string[] files = folderPath.FileSystemEntries()
+                    .MakeRelativeTo(folderPath)
+                    .Select(p => p.ToWindowsPath())
+                    .ToArray();
+                Assert.Equal(files.ToHashSet(), fileList.ToHashSet());
+            }
         }
 
-        [Then("(.*) should exist")]
-        public void ThenEntryShouldExist(string path) {
-            Assert.IsTrue(_path.Combine(path.Split('\\')).Exists);
+        public then_the_content_of_folder_result content_of_folder(string folder)
+            => new then_the_content_of_folder_result(this, folder);
+
+        public void should_be_an_entry_under(string path)
+            => Assert.True(_path.CombineWithWindowsPath(path).Exists);
+
+        public void should_be_no_entry_under(string path)
+            => Assert.False(_path.CombineWithWindowsPath(path).Exists);
+
+        public void should_have_thrown<TException>()
+        {
+            Assert.NotNull(_exception);
+            Assert.IsType<TException>(_exception);
         }
 
-        [Then("(.*) should not exist")]
-        public void ThenEntryShouldNotExist(string path) {
-            Assert.IsFalse(_path.Combine(path.Split('\\')).Exists);
-        }
+        public void should_be_an_encrypted_file_under(string path)
+            => Assert.True(Path.Current.CombineWithWindowsPath(path).IsEncrypted);
 
-        [Then("(.*) should be thrown")]
-        public void ThenExceptionShouldBeThrown(string exceptionTypeName) {
-            var e = ScenarioContext.Current["Exception"];
-            Assert.IsNotNull(e);
-            Assert.AreEqual(exceptionTypeName, e.GetType().Name);
-        }
+        public void should_be_an_unencrypted_file_under(string path)
+            => Assert.False(Path.Current.CombineWithWindowsPath(path).IsEncrypted);
 
-        [Then("(.*) should be encrypted")]
-        public void ThenFileShouldBeEncrypted(string path) {
-            Assert.IsTrue(Path.Current.Combine(path.Split('\\')).IsEncrypted);
-        }
-
-        [Then("(.*) should not be encrypted")]
-        public void ThenFileShouldNotBeEncrypted(string path) {
-            Assert.IsFalse(Path.Current.Combine(path.Split('\\')).IsEncrypted);
-        }
-
-        [Then(@"there is an additional permission on ([^\s]*)")]
-        public void ThenThereIsAnAdditionalPermissionOn(string path) {
-// ReSharper disable PossibleNullReferenceException
+        public void is_an_additional_permission_on(string path)
+        {
             SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
-// ReSharper restore PossibleNullReferenceException
-            var accessRules = _path.Combine(path.Split('\\'))
-                .AccessControl().GetAccessRules(
-                    true, false, typeof (SecurityIdentifier));
+            AuthorizationRuleCollection accessRules = _path
+                .CombineWithWindowsPath(path)
+                .AccessControl().
+                GetAccessRules(true, false, typeof(SecurityIdentifier));
             bool found = accessRules
                 .Cast<FileSystemAccessRule>()
                 .Any(accessRule => accessRule.IdentityReference.Equals(user) &&
@@ -618,69 +855,149 @@ using System.Globalization;
                     (accessRule.FileSystemRights & FileSystemRights.Read) != 0 &&
                     accessRule.InheritanceFlags == InheritanceFlags.None &&
                     accessRule.PropagationFlags == PropagationFlags.None);
-            Assert.IsTrue(found);
+            Assert.True(found);
         }
 
-        [Then("there should be a (.*) directory")]
-        public void ThenThereShouldBeADirectory(string directory) {
-            var path = Path.Current.Combine(directory.Split('\\'));
-            Assert.IsTrue(path.Exists && path.IsDirectory);
+        public void should_be_a_directory_at(string directory)
+        {
+            Path path = Path.Current.CombineWithWindowsPath(directory);
+            Assert.True(path.Exists && path.IsDirectory);
         }
 
-        [Then(@"the text content of ([^\s]*) should be ""(.*)""")]
-        public void ThenTheTextContentShouldBe(string path, string textContent) {
-            Assert.AreEqual(textContent, Path.Current.Combine(path.Split('\\')).Read());
+        public class the_content_of_result
+        {
+            private readonly string _relativePath;
+
+            public the_content_of_result(string relativePath) => _relativePath = relativePath;
+
+            public void should_be_the_text(string textContent)
+                => Assert.Equal(textContent, Path.Current.CombineWithWindowsPath(_relativePath).Read());
+
+            public void should_be_bytes(string binaryContent)
+            {
+                string binaryContentString = null;
+                Path.Current
+                    .CombineWithWindowsPath(_relativePath)
+                    .ReadBytes(actualBinaryContent => binaryContentString = actualBinaryContent.ToHex());
+                Assert.Equal(binaryContent, binaryContentString);
+            }
+
+            public the_content_of_result_with_encoding_result with_encoding(Encoding encoding)
+                => new the_content_of_result_with_encoding_result(_relativePath, encoding);
         }
 
-        [Then(@"the binary content of ([^\s]*) should be (.*)")]
-        public void ThenTheBinaryContentShouldBe(string path, string binaryContent) {
-            string binaryContentString = null;
-            Path.Current.Combine(path.Split('\\')).
-                ReadBytes(actualBinaryContent =>
-                binaryContentString = String.Join(
-                    "",
-                    (from b in actualBinaryContent
-                     select b.ToString("x2"))
-                        .ToArray()
-                    ));
-            Assert.AreEqual(binaryContent, binaryContentString);
-        }
+        public class the_content_of_result_with_encoding_result
+        {
+            private readonly string _relativePath;
+            private readonly Encoding _encoding;
 
-        [Then(@"the text content of ([^\s]*) as read using ([^\s]*) encoding should be ""(.*)""")]
-        public void ThenTheContentReadWithEncodingShouldBe(string path, string encodingName, string content) {
-            var encoding = Encoding.GetEncoding(encodingName);
-            string readContent = null;
-                Path.Current.Combine(path.Split('\\')).Read(
-                    s => readContent = s, encoding);
-            Assert.That(
-                readContent, Is.EqualTo(
-                    content));
-        }
+            public the_content_of_result_with_encoding_result(string relativePath, Encoding encoding)
+            {
+                _relativePath = relativePath;
+                _encoding = encoding;
+            }
 
-        [Then(@"the (.*) time on ([^\s]*) is (.*)")]
-        public void ThenTimeIs(string type, string path, string dateString) {
-            var combinedPath = _path.Combine(path.Split('\\'));
-            var date = DateTime.Parse(dateString, CultureInfo.InvariantCulture);
-            switch (type) {
-                case "creation":
-                    Assert.AreEqual(date, combinedPath.CreationTime());
-                    break;
-                case "UTC creation":
-                    Assert.AreEqual(date, combinedPath.CreationTimeUtc());
-                    break;
-                case "last access":
-                    Assert.AreEqual(date, combinedPath.LastAccessTime());
-                    break;
-                case "UTC last access":
-                    Assert.AreEqual(date, combinedPath.LastAccessTimeUtc());
-                    break;
-                case "last write":
-                    Assert.AreEqual(date, combinedPath.LastWriteTime());
-                    break;
-                case "UTC last write":
-                    Assert.AreEqual(date, combinedPath.LastWriteTimeUtc());
-                    break;
+            public void should_be(string textContent)
+            {
+                string readContent = null;
+                Path.Current
+                    .CombineWithWindowsPath(_relativePath)
+                    .Read(s => readContent = s, _encoding);
+                Assert.Equal(textContent, readContent);
             }
         }
+
+        public the_content_of_result content_of(string path)
+            => new the_content_of_result(path);
+
+        public class the_time_of_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly type_of_time_event _typeOfTime;
+
+            public the_time_of_result(FluentPathSpec that, type_of_time_event typeOfTime)
+            {
+                _that = that;
+                _typeOfTime = typeOfTime;
+            }
+
+            public the_time_of_result_on_result on(string relativePath)
+                => new the_time_of_result_on_result(_that, _typeOfTime, relativePath);
+        }
+
+        public class the_time_of_result_on_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly type_of_time_event _typeOfTime;
+            private readonly string _relativePath;
+
+            public the_time_of_result_on_result(FluentPathSpec that, type_of_time_event typeOfTime, string relativePath)
+            {
+                _that = that;
+                _typeOfTime = typeOfTime;
+                _relativePath = relativePath;
+            }
+
+            public void should_be(DateTime date)
+            {
+                Path combinedPath = _that._path.CombineWithWindowsPath(_relativePath);
+                switch (_typeOfTime)
+                {
+                    case type_of_time_event.creation:
+                        Assert.Equal(date, combinedPath.CreationTime());
+                        break;
+                    case type_of_time_event.UTC_creation:
+                        Assert.Equal(date, combinedPath.CreationTimeUtc());
+                        break;
+                    case type_of_time_event.last_access:
+                        Assert.Equal(date, combinedPath.LastAccessTime());
+                        break;
+                    case type_of_time_event.UTC_last_access:
+                        Assert.Equal(date, combinedPath.LastAccessTimeUtc());
+                        break;
+                    case type_of_time_event.last_write:
+                        Assert.Equal(date, combinedPath.LastWriteTime());
+                        break;
+                    case type_of_time_event.UTC_last_write:
+                        Assert.Equal(date, combinedPath.LastWriteTimeUtc());
+                        break;
+                }
+            }
+        }
+
+        public the_time_of_result time_of(type_of_time_event typeOfTime)
+            => new the_time_of_result(this, typeOfTime);
+    }
+
+    public enum type_of_time_event
+    {
+        creation, UTC_creation, last_access, UTC_last_access, last_write, UTC_last_write
+    }
+
+    public static class Helpers
+    {
+        public static Path ToCrossPlatformPath(this string path)
+            => (Path)path.Replace('\\', SystemIO.Path.DirectorySeparatorChar);
+
+        public static Path CombineWithWindowsPath(this Path path, string relativePath)
+            => path.Combine(relativePath.Split('\\'));
+
+        public static string ToWindowsPath(this Path path)
+            => path.ToString().Replace(SystemIO.Path.DirectorySeparatorChar, '\\');
+
+        public static byte[] ToBytes(this string hexContent)
+        {
+            byte[] content = new byte[hexContent.Length / 2];
+            for (int i = 0; i < hexContent.Length; i += 2)
+            {
+                content[i / 2] = byte.Parse(
+                    hexContent.Substring(i, 2), NumberStyles.HexNumber);
+            }
+
+            return content;
+        }
+
+        public static string ToHex(this byte[] bytes)
+            => String.Join("", (from b in bytes select b.ToString("x2")).ToArray());
     }
 }
