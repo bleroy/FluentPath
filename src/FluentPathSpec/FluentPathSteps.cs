@@ -39,8 +39,8 @@ namespace FluentPathSpec
             //   subsub/
             string randomFolder = SystemIO.Path.GetRandomFileName();
             _path = _testRoot = new Path(SystemIO.Path.GetTempPath())
-                .CreateSubDirectory(randomFolder)
-                .MakeCurrent();
+                .CreateSubDirectory(randomFolder);
+            //System.Diagnostics.Debug.WriteLine(_testRoot.ToString());
             _path
                 .FileSystemEntries()
                 .Delete(true);
@@ -61,8 +61,22 @@ namespace FluentPathSpec
 
         public void cleanup_test_files()
         {
-            _testRoot.Parent().MakeCurrent();
             _testRoot.Delete(true);
+        }
+
+        public void DumpTestDirectoryStructure(Path path = null, int tab = 0)
+        {
+            if (path is null) path = _testRoot;
+            string indent = new String(' ', tab);
+            System.Diagnostics.Debug.WriteLine(indent + path.FileName + "/");
+            foreach (Path child in path.Directories())
+            {
+                DumpTestDirectoryStructure(child, tab + 1);
+            }
+            foreach (Path child in path.Files())
+            {
+                System.Diagnostics.Debug.WriteLine(indent + " " + child.FileName);
+            }
         }
 
         public void add_permissions_to(string path)
@@ -83,7 +97,8 @@ namespace FluentPathSpec
 
         public void select_subdirectories() => _result = _path.Directories();
 
-        public void select_deep_subdirectories() => _result = _path.Directories("*", true);
+        public void select_deep_subdirectories()
+            => _result = _path.Directories("*", true);
 
         public void select_deep_subdirectories_with_the_pattern(string pattern)
             => _result = _path.Directories(pattern, true);
@@ -280,19 +295,24 @@ namespace FluentPathSpec
 
         public class I_copy_result
         {
-            private string _path { get; }
+            private readonly FluentPathSpec _that;
+            private readonly string _relativePath;
 
-            public I_copy_result(string path) => _path = path;
+            public I_copy_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
 
             public void with_a_doubled_filename()
             {
-                Path.Current.CombineWithWindowsPath(_path)
+                _that._path.CombineWithWindowsPath(_relativePath)
                     .Copy(
                         p => p.Parent().Combine(
                             p.FileNameWithoutExtension + p.FileNameWithoutExtension + p.Extension));
             }
         }
-        public I_copy_result copy(string path) => new I_copy_result(path);
+        public I_copy_result copy(string path) => new I_copy_result(this, path);
 
 
         public class I_make_a_deep_copy_from_result
@@ -378,16 +398,17 @@ namespace FluentPathSpec
         public I_use_overwrite_mode_to_move_result move_using_overwrite_mode(Overwrite overwrite)
             => new I_use_overwrite_mode_to_move_result(_path, overwrite);
 
-        public void move_while_doubling_the_filename(string path)
-            => Path.Current.CombineWithWindowsPath(path)
+        public void move_while_doubling_the_filename(string relativePath)
+            => _path
+                .CombineWithWindowsPath(relativePath)
                 .Move(
                     p => p.Parent().Combine(
                         p.FileNameWithoutExtension + p.FileNameWithoutExtension +
                         p.Extension));
 
-        public void open_and_read(string path)
-            => Path.Current
-                .CombineWithWindowsPath(path)
+        public void open_and_read(string relativePath)
+            => _path
+                .CombineWithWindowsPath(relativePath)
                 .Open(s =>
                 {
                     using var reader = new SystemIO.StreamReader(s);
@@ -396,35 +417,47 @@ namespace FluentPathSpec
 
         public class I_write_back_to_result
         {
+            private readonly FluentPathSpec _that;
             private readonly string _relativePath;
 
-            public I_write_back_to_result(string relativePath) => _relativePath = relativePath;
+            public I_write_back_to_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
 
             public void its_uppercased_content_and_append_some_constant_and_the_filename()
-                => Path.Current
+                => _that._path
                     .CombineWithWindowsPath(_relativePath)
                     .Process((p, s) => s.ToUpperInvariant() + " - processed " + p.FileName);
         }
 
         public I_write_back_to_result write_back_to(string relativePath)
-            => new I_write_back_to_result(relativePath);
+            => new I_write_back_to_result(this, relativePath);
 
-        public void append_processed_to_the_uppercased_content_of(string path)
-            => Path.Current
-                .CombineWithWindowsPath(path)
+        public void append_processed_to_the_uppercased_content_of(string relativePath)
+            => _path
+                .CombineWithWindowsPath(relativePath)
                 .Process(s => s.ToUpperInvariant() + " - processed");
 
         public class I_append_result
         {
+            private readonly FluentPathSpec _that;
             private readonly string _text;
 
-            public I_append_result(string text) => _text = text;
+            public I_append_result(FluentPathSpec that, string text)
+            {
+                _that = that;
+                _text = text;
+            }
 
             public void to(string relativePath)
-                => Path.Current.CombineWithWindowsPath(relativePath).Write(_text, true);
+                => _that._path
+                    .CombineWithWindowsPath(relativePath)
+                    .Write(_text, true);
         }
 
-        public I_append_result append(string text) => new I_append_result(text);
+        public I_append_result append(string text) => new I_append_result(this, text);
 
         public class I_use_encoding
         {
@@ -463,19 +496,25 @@ namespace FluentPathSpec
 
         public class I_replace_result
         {
+            private readonly FluentPathSpec _that;
             private readonly string _relativePath;
 
-            public I_replace_result(string relativePath) => _relativePath = relativePath;
+            public I_replace_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
 
             public void with(string text)
-                => Path.Current.CombineWithWindowsPath(_relativePath).Write(text);
+                => _that._path.CombineWithWindowsPath(_relativePath).Write(text);
         }
 
         public I_replace_result replace(string relativePath)
-            => new I_replace_result(relativePath);
+            => new I_replace_result(this, relativePath);
 
-        public void process_the_binary_content_of(string path)
-            => Path.Current.CombineWithWindowsPath(path)
+        public void process_the_binary_content_of(string relativePath)
+            => _path
+                .CombineWithWindowsPath(relativePath)
                 .Process(
                     ba =>
                     {
@@ -487,8 +526,8 @@ namespace FluentPathSpec
                     }
                 );
 
-        public void process_the_binary_content_and_path_of(string path)
-            => Path.Current.CombineWithWindowsPath(path)
+        public void process_the_binary_content_and_path_of(string relativePath)
+            => _path.CombineWithWindowsPath(relativePath)
                 .Process(
                     (p, ba) =>
                     {
@@ -505,8 +544,8 @@ namespace FluentPathSpec
 
         public void create_that_directory() => _path.CreateDirectory();
 
-        public void create_a_directory_with_relative_path(string path)
-            => Path.CreateDirectory(Path.Current.CombineWithWindowsPath(path).FullPath);
+        public void create_a_directory_with_relative_path(string relativePath)
+            => Path.CreateDirectory(_path.CombineWithWindowsPath(relativePath).FullPath);
 
         public void use_a_stream_to_concatenate_the_contents_of(params string[] filePaths)
         {
@@ -542,96 +581,124 @@ namespace FluentPathSpec
             files.Read((s, p) => _resultString += p.ToString() + ":" + s);
         }
 
-        public void use_a_lambda_to_create_directories_with_the_same_names_as_each_file_under(string path)
-            => _result = _path
-                .CombineWithWindowsPath(path)
-                .AllFiles()
-                .CreateDirectories(p => p.FileNameWithoutExtension);
+        public void use_a_lambda_to_create_directories_with_the_same_names_as_each_file_under(string relativePath)
+        {
+            _result = _path
+                   .CombineWithWindowsPath(relativePath)
+                   .AllFiles()
+                   .CreateDirectories(p => _testRoot.Combine(p.FileNameWithoutExtension));
+            // DumpTestDirectoryStructure();
+        }
 
         public class I_create_a_subdirectory_with_name_result
         {
+            private readonly FluentPathSpec _that;
             private readonly string _subdirectoryName;
 
-            public I_create_a_subdirectory_with_name_result(string subdirectoryName)
-                => _subdirectoryName = subdirectoryName;
+            public I_create_a_subdirectory_with_name_result(FluentPathSpec that, string subdirectoryName)
+            {
+                _that = that;
+                _subdirectoryName = subdirectoryName;
+            }
 
-            public void under(string path)
-                => Path.Current.CombineWithWindowsPath(path).CreateSubDirectory(_subdirectoryName);
+            public void under(string relativePath)
+                => _that._path.CombineWithWindowsPath(relativePath).CreateSubDirectory(_subdirectoryName);
 
             public void under(params string[] targetDirectoryNames)
-                => new Path(targetDirectoryNames).CreateDirectories(_subdirectoryName);
+                => new Path(targetDirectoryNames.Select(dir => _that._testRoot.Combine(dir)))
+                    .CreateDirectories(_subdirectoryName);
         }
 
         public I_create_a_subdirectory_with_name_result create_a_subdirectory_with_name(string subdirectoryName)
-            => new I_create_a_subdirectory_with_name_result(subdirectoryName);
+            => new I_create_a_subdirectory_with_name_result(this, subdirectoryName);
 
 
         public class I_create_a_file_result
         {
-            private readonly string _path;
+            private readonly FluentPathSpec _that;
+            private readonly string _relativePath;
 
-            public I_create_a_file_result(string path) => _path = path;
+            public I_create_a_file_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
 
             public void with_content(string content)
-                => Path.Current.CreateFiles(
-                    p => _path.ToCrossPlatformPath(),
+                => _that._path.CreateFiles(
+                    p => _relativePath.ToCrossPlatformPath(),
                     p => content);
 
             public void with_binary_content(string hexContent)
             {
                 byte[] content = hexContent.ToBytes();
-                Path.Current.CreateFiles(
-                    p => _path.ToCrossPlatformPath(),
+                _that._path.CreateFiles(
+                    p => _relativePath.ToCrossPlatformPath(),
                     p => content);
             }
 
             public I_create_file_with_encoding_result and_use_encoding(Encoding encoding)
-                => new I_create_file_with_encoding_result(_path, encoding);
+                => new I_create_file_with_encoding_result(_that, _relativePath, encoding);
         }
 
         public class I_create_file_with_encoding_result
         {
-            private readonly string _path;
+            private readonly FluentPathSpec _that;
+            private readonly string _relativePath;
             private readonly Encoding _encoding;
 
-            public I_create_file_with_encoding_result(string path, Encoding encoding)
+            public I_create_file_with_encoding_result(
+                FluentPathSpec that,
+                string relativePath,
+                Encoding encoding)
             {
-                _path = path;
+                _that = that;
+                _relativePath = relativePath;
                 _encoding = encoding;
             }
 
             public void with_content(string content)
-                => Path.Current.CreateFiles(
-                    p => _path.ToCrossPlatformPath(),
+                => _that._path.CreateFiles(
+                    p => _relativePath.ToCrossPlatformPath(),
                     p => content,
                     _encoding);
         }
 
-        public I_create_a_file_result create_a_file_under(string path)
-            => new I_create_a_file_result(path);
+        public I_create_a_file_result create_a_file_under(string relativePath)
+            => new I_create_a_file_result(this, relativePath);
 
         public class I_change_the_extension_result
         {
-            private readonly string _path;
+            private readonly FluentPathSpec _that;
+            private readonly string _relativePath;
 
-            public I_change_the_extension_result(string path) => _path = path;
+            public I_change_the_extension_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
 
             public void to(string newExtension)
             {
-                Path oldPath = Path.Current.CombineWithWindowsPath(_path);
+                Path oldPath = _that._path.CombineWithWindowsPath(_relativePath);
                 oldPath.Move(p => p.ChangeExtension(newExtension));
             }
         }
 
-        public void change_the_extension_of(string path) => new I_change_the_extension_result(path);
+        public void change_the_extension_of(string relativePath)
+            => new I_change_the_extension_result(this, relativePath);
 
-        public void delete(string path) => Path.Current.CombineWithWindowsPath(path).Delete();
+        public void delete(string relativePath)
+            => _path.CombineWithWindowsPath(relativePath).Delete();
 
-        public void recursively_delete(string path) => Path.Current.CombineWithWindowsPath(path).Delete(true);
+        public void recursively_delete(string relativePath)
+            => _path.CombineWithWindowsPath(relativePath).Delete(true);
 
-        public void decrypt(string path) => Path.Current.CombineWithWindowsPath(path).Decrypt();
+        public void decrypt(string relativePath)
+            => _path.CombineWithWindowsPath(relativePath).Decrypt();
 
-        public void encrypt(string path) => Path.Current.CombineWithWindowsPath(path).Encrypt();
+        public void encrypt(string relativePath)
+            => _path.CombineWithWindowsPath(relativePath).Encrypt();
 
         public void enumerate_directories_twice()
         {
@@ -655,7 +722,7 @@ namespace FluentPathSpec
         public void grep_for(string regularExpression)
         {
             var matches = new List<string>();
-            Path.Current.AllFiles().Grep(
+            _path.AllFiles().Grep(
                 regularExpression, (p, match, content) => matches.Add(
                     p.MakeRelative().ToString() + ":" +
                     match.Index));
@@ -789,7 +856,7 @@ namespace FluentPathSpec
         public void resulting_set_should_be(params string[] fileList)
         {
             string[] resultList = _result
-                .Select(p => (p.IsRooted ? p.MakeRelative() : p).ToWindowsPath())
+                .Select(p => (p.IsRooted ? p.MakeRelativeTo(_testRoot) : p).ToWindowsPath())
                 .ToArray();
             Assert.Equal(resultList, fileList);
         }
@@ -810,12 +877,12 @@ namespace FluentPathSpec
 
             public void should_be(params string[] fileList)
             {
-                Path folderPath = _that._path.Combine(_relativePath);
-                string[] files = folderPath.FileSystemEntries()
+                Path folderPath = _that._testRoot.Combine(_relativePath);
+                var files = folderPath.FileSystemEntries()
                     .MakeRelativeTo(folderPath)
                     .Select(p => p.ToWindowsPath())
-                    .ToArray();
-                Assert.Equal(files.ToHashSet(), fileList.ToHashSet());
+                    .ToHashSet();
+                Assert.Equal(fileList.ToHashSet(), files);
             }
         }
 
@@ -834,11 +901,11 @@ namespace FluentPathSpec
             Assert.IsType<TException>(_exception);
         }
 
-        public void should_be_an_encrypted_file_under(string path)
-            => Assert.True(Path.Current.CombineWithWindowsPath(path).IsEncrypted);
+        public void should_be_an_encrypted_file_under(string relativePath)
+            => Assert.True(_path.CombineWithWindowsPath(relativePath).IsEncrypted);
 
-        public void should_be_an_unencrypted_file_under(string path)
-            => Assert.False(Path.Current.CombineWithWindowsPath(path).IsEncrypted);
+        public void should_be_an_unencrypted_file_under(string relativePath)
+            => Assert.False(_path.CombineWithWindowsPath(relativePath).IsEncrypted);
 
         public void is_an_additional_permission_on(string path)
         {
@@ -860,39 +927,49 @@ namespace FluentPathSpec
 
         public void should_be_a_directory_at(string directory)
         {
-            Path path = Path.Current.CombineWithWindowsPath(directory);
+            Path path = _testRoot.CombineWithWindowsPath(directory);
             Assert.True(path.Exists && path.IsDirectory);
         }
 
         public class the_content_of_result
         {
+            private readonly FluentPathSpec _that;
             private readonly string _relativePath;
 
-            public the_content_of_result(string relativePath) => _relativePath = relativePath;
+            public the_content_of_result(FluentPathSpec that, string relativePath)
+            {
+                _that = that;
+                _relativePath = relativePath;
+            }
 
             public void should_be_the_text(string textContent)
-                => Assert.Equal(textContent, Path.Current.CombineWithWindowsPath(_relativePath).Read());
+                => Assert.Equal(textContent, _that._path.CombineWithWindowsPath(_relativePath).Read());
 
             public void should_be_bytes(string binaryContent)
             {
                 string binaryContentString = null;
-                Path.Current
+                _that._path
                     .CombineWithWindowsPath(_relativePath)
                     .ReadBytes(actualBinaryContent => binaryContentString = actualBinaryContent.ToHex());
                 Assert.Equal(binaryContent, binaryContentString);
             }
 
             public the_content_of_result_with_encoding_result with_encoding(Encoding encoding)
-                => new the_content_of_result_with_encoding_result(_relativePath, encoding);
+                => new the_content_of_result_with_encoding_result(_that, _relativePath, encoding);
         }
 
         public class the_content_of_result_with_encoding_result
         {
+            private readonly FluentPathSpec _that;
             private readonly string _relativePath;
             private readonly Encoding _encoding;
 
-            public the_content_of_result_with_encoding_result(string relativePath, Encoding encoding)
+            public the_content_of_result_with_encoding_result(
+                FluentPathSpec that,
+                string relativePath,
+                Encoding encoding)
             {
+                _that = that;
                 _relativePath = relativePath;
                 _encoding = encoding;
             }
@@ -900,7 +977,7 @@ namespace FluentPathSpec
             public void should_be(string textContent)
             {
                 string readContent = null;
-                Path.Current
+                _that._path
                     .CombineWithWindowsPath(_relativePath)
                     .Read(s => readContent = s, _encoding);
                 Assert.Equal(textContent, readContent);
@@ -908,7 +985,7 @@ namespace FluentPathSpec
         }
 
         public the_content_of_result content_of(string path)
-            => new the_content_of_result(path);
+            => new the_content_of_result(this, path);
 
         public class the_time_of_result
         {
