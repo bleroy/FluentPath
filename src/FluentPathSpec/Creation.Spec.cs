@@ -49,7 +49,7 @@ namespace FluentPathSpec
                 .Given(I.start_with_a_clean_directory)
                 .When(() => I.use_a_lambda_to_create_directories_with_the_same_names_as_each_file_under("bar"))
                 .Then(() => the.resulting_set_should_be("baz", "notes", "deep"))
-                 .And(() => the.content_of_folder(".").should_be("foo.txt", "bar", "baz", "notes", "deep", "sub"));
+                 .And(() => the.content_of_directory(".").should_be("foo.txt", "bar", "baz", "notes", "deep", "sub"));
 
         [Fact]
         public void CreateTextFileWithDefaultEncoding()

@@ -306,7 +306,7 @@ namespace FluentPathSpec
 
             public void with_a_doubled_filename()
             {
-                _that._path.CombineWithWindowsPath(_relativePath)
+                _that._result = _that._path.CombineWithWindowsPath(_relativePath)
                     .Copy(
                         p => p.Parent().Combine(
                             p.FileNameWithoutExtension + p.FileNameWithoutExtension + p.Extension));
@@ -338,65 +338,77 @@ namespace FluentPathSpec
 
         public class I_move_from_result
         {
-            private readonly Path _path;
+            private readonly FluentPathSpec _that;
             private readonly string _from;
 
-            public I_move_from_result(Path path, string from)
+            public I_move_from_result(FluentPathSpec that, string from)
             {
-                _path = path;
+                _that = that;
                 _from = from;
             }
 
             public void to(string to)
             {
-                Path src = _path.Combine(_from);
-                src.Move((string)_path.CombineWithWindowsPath(to));
+                Path src = _that._path.Combine(_from);
+                src.Move((string)_that._path.CombineWithWindowsPath(to));
             }
         }
 
         public I_move_from_result move_from(string from)
-            => new I_move_from_result(_path, from);
+            => new I_move_from_result(this, from);
 
         public class I_use_overwrite_mode_to_move_result
         {
-            private readonly Path _path;
+            private readonly FluentPathSpec _that;
             private readonly Overwrite _overwrite;
 
-            public I_use_overwrite_mode_to_move_result(Path path, Overwrite overwrite)
+            public I_use_overwrite_mode_to_move_result(FluentPathSpec that, Overwrite overwrite)
             {
-                _path = path;
+                _that = that;
                 _overwrite = overwrite;
             }
 
-            public to_move_from_result to_move_from(string from)
-                => new to_move_from_result(_path, _overwrite, from);
+            public to_move_from_result from(string from)
+                => new to_move_from_result(_that, _overwrite, from);
         }
 
         public class to_move_from_result
         {
-            private readonly Path _path;
+            private readonly FluentPathSpec _that;
             private readonly Overwrite _overwrite;
             private readonly string _from;
 
-            public to_move_from_result(Path path, Overwrite overwrite, string from)
+            public to_move_from_result(FluentPathSpec that, Overwrite overwrite, string from)
             {
-                _path = path;
+                _that = that;
                 _overwrite = overwrite;
                 _from = from;
             }
 
             public void to(string to)
             {
-                Path src = _path.Combine(_from);
-                Assert.Throws<Exception>(() =>
+                Path src = _that._path.Combine(_from);
+                Path dest = _that._path.CombineWithWindowsPath(to);
+                if (_overwrite == Overwrite.Throw)
                 {
-                    src.Move((string)_path.CombineWithWindowsPath(to), _overwrite);
-                });
+                    try
+                    {
+                        src.Move((string)dest, _overwrite);
+                    }
+                    catch(Exception e)
+                    {
+                        _that._exception = e;
+                    }
+                }
+                else
+                {
+                    src.Move((string)dest, _overwrite);
+                }
             }
         }
 
         public I_use_overwrite_mode_to_move_result move_using_overwrite_mode(Overwrite overwrite)
-            => new I_use_overwrite_mode_to_move_result(_path, overwrite);
+            => new I_use_overwrite_mode_to_move_result(this, overwrite);
 
         public void move_while_doubling_the_filename(string relativePath)
             => _path
@@ -886,7 +898,7 @@ namespace FluentPathSpec
             }
         }
 
-        public then_the_content_of_folder_result content_of_folder(string folder)
+        public then_the_content_of_folder_result content_of_directory(string folder)
             => new then_the_content_of_folder_result(this, folder);
 
         public void should_be_an_entry_under(string path)
