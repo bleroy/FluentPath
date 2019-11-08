@@ -521,7 +521,7 @@ namespace FluentPathSpec
                 => _that._path.CombineWithWindowsPath(_relativePath).Write(text);
         }
 
-        public I_replace_result replace(string relativePath)
+        public I_replace_result replace_the_text_of(string relativePath)
             => new I_replace_result(this, relativePath);
 
         public void process_the_binary_content_of(string relativePath)
@@ -697,7 +697,7 @@ namespace FluentPathSpec
             }
         }
 
-        public void change_the_extension_of(string relativePath)
+        public I_change_the_extension_result change_the_extension_of(string relativePath)
             => new I_change_the_extension_result(this, relativePath);
 
         public void delete(string relativePath)
@@ -736,7 +736,7 @@ namespace FluentPathSpec
             var matches = new List<string>();
             _path.AllFiles().Grep(
                 regularExpression, (p, match, content) => matches.Add(
-                    p.MakeRelative().ToString() + ":" +
+                    p.MakeRelativeTo(_path).ToString() + ":" +
                     match.Index));
             _resultString = string.Join(", ", matches);
         }
