@@ -141,26 +141,24 @@ namespace FluentPathSpec
         public class I_set_attributes_result
         {
             private readonly Path _path;
-            private readonly string[] _attributeNames;
+            private readonly SystemIO.FileAttributes[] _attributes;
 
-            public I_set_attributes_result(Path path, string[] attributeNames)
+            public I_set_attributes_result(Path path, SystemIO.FileAttributes[] attributeNames)
             {
                 _path = path;
-                _attributeNames = attributeNames;
+                _attributes = attributeNames;
             }
 
             public void on(string path)
             {
                 SystemIO.FileAttributes attributes =
-                    _attributeNames.Aggregate<string, SystemIO.FileAttributes>(0,
-                        (current, attrName) => current |
-                        (SystemIO.FileAttributes)Enum.Parse(typeof(SystemIO.FileAttributes), attrName));
+                    _attributes.Aggregate((a, b) => a | b);
                 _path.CombineWithWindowsPath(path).Attributes(attributes);
             }
         }
 
-        public I_set_attributes_result set_attributes(params string[] attributeNames)
-            => new I_set_attributes_result(_path, attributeNames);
+        public I_set_attributes_result set_attributes(params SystemIO.FileAttributes[] attributes)
+            => new I_set_attributes_result(_path, attributes);
 
         public class I_set_time_of_result
         {
@@ -561,7 +559,7 @@ namespace FluentPathSpec
 
         public void use_a_stream_to_concatenate_the_contents_of(params string[] filePaths)
         {
-            var files = new Path(filePaths);
+            Path files = _path.CombineWithWindowsPaths(filePaths);
             files.Open(
                 s =>
                 {
@@ -572,25 +570,25 @@ namespace FluentPathSpec
 
         public void use_a_stream_to_read_path_and_content_for_each_of(params string[] filePaths)
         {
-            var files = new Path(filePaths);
+            Path files = _path.CombineWithWindowsPaths(filePaths);
             files.Open(
                 (s, p) =>
                 {
                     using var reader = new SystemIO.StreamReader(s);
-                    _resultString += p.ToString() + ":" + reader.ReadToEnd();
+                    _resultString += p.MakeRelativeTo(_path).ToWindowsPath() + ":" + reader.ReadToEnd();
                 });
         }
 
         public void concatenate_the_contents_of(params string[] filePaths)
         {
-            var files = new Path(filePaths);
+            Path files = _path.CombineWithWindowsPaths(filePaths);
             files.Read(s => { _resultString += s; });
         }
 
         public void read_path_and_content_for_each_of(params string[] filePaths)
         {
-            var files = new Path(filePaths);
-            files.Read((s, p) => _resultString += p.ToString() + ":" + s);
+            Path files = _path.CombineWithWindowsPaths(filePaths);
+            files.Read((s, p) => _resultString += p.MakeRelativeTo(_path).ToWindowsPath() + ":" + s);
         }
 
         public void use_a_lambda_to_create_directories_with_the_same_names_as_each_file_under(string relativePath)
@@ -849,16 +847,12 @@ namespace FluentPathSpec
                 _relativePath = relativePath;
             }
 
-            public void should_be(params string[] attributeNames)
+            public void should_be(params SystemIO.FileAttributes[] attributes)
             {
                 SystemIO.FileAttributes fileAttributes =
                     _that._path.CombineWithWindowsPath(_relativePath).Attributes();
-                foreach (string attrName in attributeNames)
-                {
-                    Assert.Equal((SystemIO.FileAttributes)0,
-                        fileAttributes &
-                        (SystemIO.FileAttributes)Enum.Parse(typeof(SystemIO.FileAttributes), attrName));
-                }
+                SystemIO.FileAttributes expected = attributes.Aggregate((a, b) => a | b);
+                Assert.Equal(expected, fileAttributes);
             }
         }
 
@@ -1070,6 +1064,10 @@ namespace FluentPathSpec
 
         public static Path CombineWithWindowsPath(this Path path, string relativePath)
             => path.Combine(relativePath.Split('\\'));
+
+        public static Path CombineWithWindowsPaths(this Path path, string[] relativePaths)
+            => new Path(relativePaths.Select(p => path.CombineWithWindowsPath(p)));
+
 
         public static string ToWindowsPath(this Path path)
             => path.ToString().Replace(SystemIO.Path.DirectorySeparatorChar, '\\');

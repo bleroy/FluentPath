@@ -3,7 +3,6 @@
 // MIT License http://opensource.org/licenses/MIT
 
 using Cornichon;
-using Fluent.IO;
 using System;
 using Xunit;
 
