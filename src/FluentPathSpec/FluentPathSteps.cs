@@ -867,10 +867,10 @@ namespace FluentPathSpec
 
         public void resulting_set_should_be(params string[] fileList)
         {
-            string[] resultList = _result
+            var resultList = _result
                 .Select(p => (p.IsRooted ? p.MakeRelativeTo(_testRoot) : p).ToWindowsPath())
-                .ToArray();
-            Assert.Equal(resultList, fileList);
+                .ToHashSet();
+            Assert.Equal(fileList.ToHashSet(), resultList);
         }
 
         public void resulting_string_should_be(string resultString)
