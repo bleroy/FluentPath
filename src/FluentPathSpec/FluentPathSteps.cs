@@ -14,6 +14,7 @@ using SystemIO = System.IO;
 using Fluent.IO;
 using Fluent.IO.Windows;
 using Xunit;
+using Fluent.Zip;
 
 namespace FluentPathSpec
 {
@@ -23,6 +24,7 @@ namespace FluentPathSpec
         private Path _path;
         private Path _result;
         private string _resultString;
+        private byte[] _zipped;
         private Exception _exception;
 
         public void start_with_a_clean_directory()
@@ -836,6 +838,69 @@ namespace FluentPathSpec
         public I_write_bytes_result write_bytes(string hexContent)
             => new I_write_bytes_result(this, hexContent);
 
+        public class I_zip_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly string _source;
+
+            public I_zip_result(FluentPathSpec that, string source)
+            {
+                _that = that;
+                _source = source;
+            }
+
+            public void to(string destination)
+            {
+                Path sourcePath = _that._path.CombineWithWindowsPath(_source);
+                Path destinationPath = _that._path.CombineWithWindowsPath(destination);
+                sourcePath.Zip(destinationPath);
+            }
+        }
+
+        public I_zip_result zip(string source) => new I_zip_result(this, source);
+
+        public class I_zip_in_memory_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly string _content;
+
+            public I_zip_in_memory_result(FluentPathSpec that, string content)
+            {
+                _that = that;
+                _content = content;
+            }
+
+            public void to(string destination)
+            {
+                _that._zipped = ZipExtensions.Zip(
+                    _that._path.CombineWithWindowsPath(destination),
+                    p => Encoding.Default.GetBytes(_content));
+            }
+        }
+
+        public I_zip_in_memory_result zip_in_memory(string content) => new I_zip_in_memory_result(this, content);
+
+        public class I_unzip_result
+        {
+            private readonly FluentPathSpec _that;
+            private readonly string _source;
+
+            public I_unzip_result(FluentPathSpec that, string source)
+            {
+                _that = that;
+                _source = source;
+            }
+
+            public void to(string destination)
+            {
+                Path sourcePath = _that._path.CombineWithWindowsPath(_source);
+                Path destinationPath = _that._path.CombineWithWindowsPath(destination);
+                sourcePath.Unzip(destinationPath);
+            }
+        }
+
+        public I_unzip_result unzip(string source) => new I_unzip_result(this, source);
+
         public class then_the_attributes_on_result
         {
             private readonly FluentPathSpec _that;
@@ -960,6 +1025,17 @@ namespace FluentPathSpec
                 Assert.Equal(binaryContent, binaryContentString);
             }
 
+            public void should_be_identical_to_the_content_of(string otherPath)
+            {
+                Path p1 = _that._path.CombineWithWindowsPath(_relativePath);
+                Path files1 = p1.AllFiles();
+                Path p2 = _that._path.CombineWithWindowsPath(otherPath);
+                Path files2 = p2.AllFiles();
+                Assert.True(files1.MakeRelativeTo(p1) == files2.MakeRelativeTo(p2));
+                files1.ReadBytes((ba, p) =>
+                    Assert.Equal(p2.Combine(p.MakeRelativeTo(p1)).ReadBytes(), ba));
+            }
+
             public the_content_of_result_with_encoding_result with_encoding(Encoding encoding)
                 => new the_content_of_result_with_encoding_result(_that, _relativePath, encoding);
         }
@@ -1050,6 +1126,14 @@ namespace FluentPathSpec
 
         public the_time_of_result time_of(type_of_time_event typeOfTime)
             => new the_time_of_result(this, typeOfTime);
+
+        public void zip_contains(string path, string content)
+        {
+            ZipExtensions.Unzip(_zipped, (string p, byte[] ba) => {
+                Assert.Equal(path, p);
+                Assert.Equal(content, Encoding.Default.GetString(ba));
+            });
+        }
     }
 
     public enum type_of_time_event
@@ -1063,7 +1147,7 @@ namespace FluentPathSpec
             => (Path)path.Replace('\\', SystemIO.Path.DirectorySeparatorChar);
 
         public static Path CombineWithWindowsPath(this Path path, string relativePath)
-            => path.Combine(relativePath.Split('\\'));
+            => path is null ? new Path(relativePath) : path.Combine(relativePath.Split('\\'));
 
         public static Path CombineWithWindowsPaths(this Path path, string[] relativePaths)
             => new Path(relativePaths.Select(p => path.CombineWithWindowsPath(p)));
