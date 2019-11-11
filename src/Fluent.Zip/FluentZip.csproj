@@ -11,6 +11,11 @@
     <Description>Compression extensions for FluentPath</Description>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageProjectUrl>https://github.com/bleroy/FluentPath</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/bleroy/FluentPath</RepositoryUrl>
+    <PackageIcon>favicon.png</PackageIcon>
+    <PackageIconUrl />
+    <PackageTags>FluentPath, IO, ZIP, Unzip, Fluent</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +24,13 @@
 
   <ItemGroup>
     <Folder Include="Properties\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\doc\media\favicon.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>

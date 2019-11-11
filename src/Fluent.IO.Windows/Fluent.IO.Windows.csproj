@@ -8,9 +8,14 @@
     <Authors>Bertrand Le Roy</Authors>
     <Company>Decent Consulting</Company>
     <Product>FluentPath</Product>
-    <Copyright>Copyright © 2010-2015 Bertrand Le Roy</Copyright>
+    <Copyright>Copyright © 2010-2019 Bertrand Le Roy</Copyright>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageIcon>favicon.png</PackageIcon>
+    <PackageIconUrl />
+    <RepositoryUrl>https://github.com/bleroy/FluentPath</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/bleroy/FluentPath</PackageProjectUrl>
+    <PackageTags>FluentPath, Windows, Fluent, IO</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +28,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FluentPath\FluentPath.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\doc\media\favicon.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+    </None>
   </ItemGroup>
 
 </Project>
