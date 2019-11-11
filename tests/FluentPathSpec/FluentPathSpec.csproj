@@ -18,9 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Fluent.IO.Windows\Fluent.IO.Windows.csproj" />
-    <ProjectReference Include="..\Fluent.Zip\FluentZip.csproj" />
-    <ProjectReference Include="..\FluentPath\FluentPath.csproj" />
+    <ProjectReference Include="..\..\src\Fluent.IO.Windows\Fluent.IO.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Fluent.Zip\FluentZip.csproj" />
+    <ProjectReference Include="..\..\src\FluentPath\FluentPath.csproj" />
   </ItemGroup>
 
   <ItemGroup>
