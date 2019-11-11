@@ -9,6 +9,8 @@
     <Company>Decent Consulting</Company>
     <Product>FluentPath</Product>
     <Copyright>Copyright © 2010-2015 Bertrand Le Roy</Copyright>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
   </PropertyGroup>
 
   <ItemGroup>
