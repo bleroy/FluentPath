@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FluentPathSpec", "FluentPat
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Fluent.IO.Windows", "Fluent.IO.Windows\Fluent.IO.Windows.csproj", "{A625E670-091B-42A5-912D-C02A71CB5B9F}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FluentZip", "Fluent.Zip\FluentZip.csproj", "{57F31829-D263-4682-991B-F224E7FB479B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{A625E670-091B-42A5-912D-C02A71CB5B9F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A625E670-091B-42A5-912D-C02A71CB5B9F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A625E670-091B-42A5-912D-C02A71CB5B9F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57F31829-D263-4682-991B-F224E7FB479B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57F31829-D263-4682-991B-F224E7FB479B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57F31829-D263-4682-991B-F224E7FB479B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57F31829-D263-4682-991B-F224E7FB479B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
