@@ -853,32 +853,32 @@ namespace FluentPathSpec
             {
                 Path sourcePath = _that._path.CombineWithWindowsPath(_source);
                 Path destinationPath = _that._path.CombineWithWindowsPath(destination);
-                sourcePath.Zip(destinationPath);
+                destinationPath.Zip(sourcePath);
             }
         }
 
         public I_zip_result zip(string source) => new I_zip_result(this, source);
 
-        public class I_zip_in_memory_result
-        {
-            private readonly FluentPathSpec _that;
-            private readonly string _content;
+        //public class I_zip_in_memory_result
+        //{
+        //    private readonly FluentPathSpec _that;
+        //    private readonly string _content;
 
-            public I_zip_in_memory_result(FluentPathSpec that, string content)
-            {
-                _that = that;
-                _content = content;
-            }
+        //    public I_zip_in_memory_result(FluentPathSpec that, string content)
+        //    {
+        //        _that = that;
+        //        _content = content;
+        //    }
 
-            public void to(string destination)
-            {
-                _that._zipped = ZipExtensions.Zip(
-                    _that._path.CombineWithWindowsPath(destination),
-                    p => Encoding.Default.GetBytes(_content));
-            }
-        }
+        //    public void to(string destination)
+        //    {
+        //        _that._zipped = ZipExtensions.Zip(
+        //            _that._path.CombineWithWindowsPath(destination),
+        //            p => new MemoryStream(Encoding.Default.GetBytes(_content)));
+        //    }
+        //}
 
-        public I_zip_in_memory_result zip_in_memory(string content) => new I_zip_in_memory_result(this, content);
+        //public I_zip_in_memory_result zip_in_memory(string content) => new I_zip_in_memory_result(this, content);
 
         public class I_unzip_result
         {

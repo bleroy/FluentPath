@@ -421,11 +421,6 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void FirstPathFailsOnEmptyCollection() {
-            Assert.Throws<InvalidOperationException>(() => new Path().First());
-        }
-
-        [Fact]
         public void TrailingBackslashDoesntMatterForPathEquality() {
             var path1 = new Path("foo" + _sep + "bar");
             var path2 = new Path("foo" + _sep + "bar" + _sep);
@@ -439,23 +434,6 @@ namespace FluentPathTest {
 
             Assert.True(new Path("foo" + _sep + "bar") == path.Parent());
             Assert.True(new Path("foo" + _sep + "bar" + _sep) == path.Parent());
-        }
-
-        private class DerivedPath : PathBase<DerivedPath> {
-            public DerivedPath() { }
-            public DerivedPath(string path) : base(path) {}
-
-            public bool DoStuff() {
-                return true;
-            }
-        }
-
-        [Fact]
-        public void DerivedPathWorks() {
-            var derivedPath = new DerivedPath("foo");
-
-            Assert.True(derivedPath.DoStuff());
-            Assert.True(derivedPath.Parent().DoStuff());
         }
     }
 }

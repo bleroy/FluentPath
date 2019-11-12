@@ -26,10 +26,10 @@ namespace FluentPathSpec
             I.cleanup_test_files();
         }
 
-        [Fact]
-        public void ZipAndUnzipInMemory()
-            => Scenario
-                .Given(() => I.zip_in_memory("zipped content").to(@"foo\bar.txt"))
-                .Then(() => the.zip_contains(path: @"foo\bar.txt", content: "zipped content"));
+        //[Fact]
+        //public void ZipAndUnzipInMemory()
+        //    => Scenario
+        //        .Given(() => I.zip_in_memory("zipped content").to(@"foo\bar.txt"))
+        //        .Then(() => the.zip_contains(path: @"foo\bar.txt", content: "zipped content"));
     }
 }
