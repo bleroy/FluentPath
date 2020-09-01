@@ -13,7 +13,7 @@ namespace Fluent.IO.Windows
         /// <returns>The set</returns>
         public static Path Decrypt(this Path path)
         {
-            foreach (var p in path.ToStringArray().Where(p => !Directory.Exists(p)))
+            foreach (string p in path.ToStringArray().Where(p => !Directory.Exists(p)))
             {
                 File.Decrypt(p);
             }
@@ -26,7 +26,7 @@ namespace Fluent.IO.Windows
         /// <returns>The set</returns>
         public static Path Encrypt(this Path path)
         {
-            foreach (var p in path.ToStringArray().Where(p => !Directory.Exists(p)))
+            foreach (string p in path.ToStringArray().Where(p => !Directory.Exists(p)))
             {
                 File.Encrypt(p);
             }
@@ -39,7 +39,7 @@ namespace Fluent.IO.Windows
         /// <returns>The security information</returns>
         public static FileSystemSecurity AccessControl(this Path path)
         {
-            var firstPath = path.ToStringArray().FirstOrDefault();
+            string firstPath = path.ToStringArray().FirstOrDefault();
             if (firstPath == null) throw new InvalidOperationException("Can't get access control from an empty path.");
             return Directory.Exists(firstPath)
                 ? new DirectoryInfo(firstPath).GetAccessControl()
@@ -61,7 +61,7 @@ namespace Fluent.IO.Windows
         /// <returns>The set</returns>
         public static Path AccessControl(this Path path, Action<Path, FileSystemSecurity> action)
         {
-            foreach (var p in path.ToStringArray())
+            foreach (string p in path.ToStringArray())
             {
                 action(new Path(p, path),
                     Directory.Exists(p)
@@ -86,7 +86,7 @@ namespace Fluent.IO.Windows
         /// <returns>The set</returns>
         public static Path AccessControl(this Path path, Func<Path, FileSystemSecurity> securityFunction)
         {
-            foreach (var p in path.ToStringArray())
+            foreach (string p in path.ToStringArray())
             {
                 if (Directory.Exists(p))
                 {

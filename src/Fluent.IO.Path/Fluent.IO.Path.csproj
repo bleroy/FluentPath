@@ -1,19 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
-    <Version>2.0.0</Version>
+    <Description>A fluent wrapper around System.IO</Description>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <RootNamespace>Fluent.IO</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>8.0</LangVersion>
+    <Version>3.0.0</Version>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Company>Decent Consulting</Company>
-    <Description>A fluent wrapper around System.IO</Description>
-    <Copyright>Copyright © 2010-2019 Bertrand Le Roy</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageIcon>favicon.png</PackageIcon>
-    <PackageIconUrl />
     <PackageProjectUrl>https://github.com/bleroy/FluentPath</PackageProjectUrl>
     <RepositoryUrl>https://github.com/bleroy/FluentPath</RepositoryUrl>
     <PackageTags>IO, path, file system, file, directory, fluent</PackageTags>
+    <Company>Decent Consulting</Company>
+    <Copyright>Copyright © 2010-2019 Bertrand Le Roy</Copyright>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

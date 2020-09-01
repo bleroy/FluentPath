@@ -20,7 +20,7 @@ putmoviesinfolders [path]
 where [path] is the path of the folder to process.");
                 return;
             }
-            Path.Get(args.Length != 0 ? args[0] : ".")
+            Path.FromTokens(args.Length != 0 ? args[0] : ".")
                 .Files(
                     p => new[] {
                         ".avi", ".m4v", ".wmv",

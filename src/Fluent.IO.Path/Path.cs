@@ -8,77 +8,372 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
-
+using System.Threading.Tasks;
 using SystemPath = System.IO.Path;
 
-namespace Fluent.IO {
+namespace Fluent.IO
+{
     [TypeConverter(typeof(PathConverter))]
-    public class Path : IEnumerable<Path> {
-        private readonly IEnumerable<string> _paths;
-        private readonly Path _previous;
+    public sealed class Path : IEnumerable<Path>, INotifyCompletion, IPathChain
+    {
+        #region state
+        /// <summary>
+        /// The previous set, from which the current one was created.
+        /// </summary>
+        public Path Previous { get; }
 
+        private Task _task;
+        private readonly bool _isPathCached = false;
+        private IEnumerable<string> _pathCache = Array.Empty<string>();
+        private readonly Func<IEnumerable<string>> _pathResolver = () => Array.Empty<string>();
+        #endregion
+
+        #region constructors and factories
         /// <summary>
         /// Creates a collection of paths from a list of path strings.
         /// </summary>
         /// <param name="paths">The list of path strings.</param>
-        public Path(params string[] paths) : this(paths, null) {
-        }
+        public Path(params string[] paths) : this(paths, Empty) { }
 
         /// <summary>
         /// Creates a collection of paths from a list of path strings and a previous list of paths.
         /// </summary>
         /// <param name="path">A path string.</param>
         /// <param name="previous">The previous set.</param>
-        public Path(string path, Path previous = null) : this(new[] { path }, previous) { }
+        public Path(string path, Path previous) : this(new[] { path }, previous) { }
 
         /// <summary>
         /// Creates a collection of paths from a list of path strings and a previous list of paths.
         /// </summary>
         /// <param name="paths">The list of path strings in the set.</param>
         /// <param name="previous">The previous set.</param>
-        public Path(IEnumerable<string> paths, Path previous = null) {
-            if (paths == null) throw new ArgumentNullException(nameof(paths));
-            _paths = paths
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s[s.Length - 1] ==
-                    SystemPath.DirectorySeparatorChar && SystemPath.GetPathRoot(s) != s ?
-                    s.Substring(0, s.Length - 1) : s)
-                .Distinct(StringComparer.CurrentCultureIgnoreCase);
-            _previous = previous;
-        }
+        public Path(IEnumerable<string> paths, Path previous) : this(Task.FromResult(true), paths, previous) { }
 
         /// <summary>
-        /// Creates a collection of paths from a list of paths and a previous list of paths.
-        /// </summary>
-        /// <param name="paths">The list of paths in the set.</param>
-        public Path(params Path[] paths) : this(paths, null) { }
-
-        /// <summary>
-        /// Creates a collection of paths from a list of paths and a previous list of paths.
+        /// Creates a collection of paths from a prerequisiste task, a list of path strings and a previous list of paths.
         /// </summary>
         /// <param name="paths">The list of paths in the set.</param>
         /// <param name="previous">The previous set.</param>
-        public Path(IEnumerable<Path> paths, Path previous = null)
+        private Path(Task task, IEnumerable<string> paths, Path previous)
         {
-            if (paths == null) throw new ArgumentNullException(nameof(paths));
-            _paths = paths
-                .SelectMany(p => p._paths)
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Select(s => s[s.Length - 1] ==
-                    SystemPath.DirectorySeparatorChar && SystemPath.GetPathRoot(s) != s ?
-                    s.Substring(0, s.Length - 1) : s)
-                .Distinct(StringComparer.CurrentCultureIgnoreCase);
-            _previous = previous;
+            _task = task;
+            _pathCache = Normalize(paths);
+            _isPathCached = true;
+            Previous = previous;
         }
+
+        /// <summary>
+        /// Creates a collection of paths from a prerequisiste task, a path resolver and a previous list of paths.
+        /// </summary>
+        /// <param name="paths">The list of paths in the set.</param>
+        /// <param name="previous">The previous set.</param>
+        private Path(Task task, Func<IEnumerable<string>> pathResolver, Path previous)
+        {
+            _task = task;
+            _pathResolver = pathResolver;
+            Previous = previous;
+        }
+
+        /// <summary>
+        /// Creates a collection of paths from a prerequisiste task, a path resolver and a previous list of paths.
+        /// </summary>
+        /// <param name="paths">The list of paths in the set.</param>
+        /// <param name="previous">The previous set.</param>
+        private Path(
+            Task task,
+            bool isPathCached,
+            IEnumerable<string> paths,
+            Func<IEnumerable<string>> pathResolver,
+            Path previous)
+        {
+            _task = task;
+            _isPathCached = isPathCached;
+            _pathCache = paths;
+            _pathResolver = pathResolver;
+            Previous = previous;
+        }
+
+        /// <summary>
+        /// Creates a new path from its string token representation.
+        /// </summary>
+        /// <example>Path.Get("c:", "foo", "bar") will get c:\foo\bar on Windows.</example>
+        /// <param name="pathTokens">The tokens for the path.</param>
+        /// <returns>The path object.</returns>
+        public static Path FromTokens(params string[] pathTokens)
+            => (pathTokens.Length == 0)
+            ? throw new ArgumentException("At least one token needs to be specified.", nameof(pathTokens))
+            : new Path(SystemPath.Combine(pathTokens));
+
+        /// <summary>
+        /// Normalizes and removes duplicates from a list of path strings.
+        /// </summary>
+        /// <param name="rawPaths">The paths to normalize</param>
+        /// <returns>The normalized paths</returns>
+        private static IEnumerable<string> Normalize(IEnumerable<string> rawPaths)
+            => rawPaths
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s[^1] == SystemPath.DirectorySeparatorChar && SystemPath.GetPathRoot(s) != s ? s[0..^1] : s)
+                .Distinct(StringComparer.CurrentCultureIgnoreCase);
+        #endregion
+
+        #region chainability methods for extension implementers
+        private IPathChain Chain => this;
+
+        Path IPathChain.Chain(Func<IEnumerable<string>> pathResolver, Path previous)
+            => _task.IsCompleted ? new Path(pathResolver(), previous) : new Path(_task, pathResolver, previous);
+
+        Path IPathChain.Chain(Func<IEnumerable<string>> pathResolver) => Chain.Chain(pathResolver, this);
+
+        Path IPathChain.Chain(Func<Task<IEnumerable<string>>> pathResolver, Path previous)
+        {
+            Task antecedent = _task;
+            IEnumerable<string> paths = Array.Empty<string>();
+            return Chain.Chain(Task.Run(async () =>
+            {
+                if (!antecedent.IsCompleted)
+                {
+                    await antecedent;
+                }
+                paths = await pathResolver();
+            }), () => paths, previous);
+        }
+
+        Path IPathChain.Chain(Func<Task<IEnumerable<string>>> pathResolver) => Chain.Chain(pathResolver, this);
+
+        Path IPathChain.Chain(Action continuation, IEnumerable<string> paths, Path previous)
+        {
+            if (_task.IsCompleted)
+            {
+                continuation();
+                return new Path(paths, previous);
+            }
+            return new Path(Task.Run(continuation), paths, previous);
+        }
+
+        Path IPathChain.Chain(Action continuation)
+        {
+            if (_task.IsCompleted)
+            {
+                continuation();
+                return new Path(Chain.Paths, this);
+            }
+            return new Path(Task.Run(continuation), _isPathCached, _pathCache, _pathResolver, this);
+        }
+
+        Path IPathChain.Chain(Action continuation, Func<IEnumerable<string>> pathResolver, Path previous)
+        {
+            if (_task.IsCompleted)
+            {
+                continuation();
+                return new Path(pathResolver(), previous);
+            }
+            return new Path(Task.Run(continuation), pathResolver, previous);
+        }
+
+        Path IPathChain.Chain(Action continuation, Func<IEnumerable<string>> pathResolver)
+            => Chain.Chain(continuation, pathResolver, this);
+
+        Path IPathChain.Chain(Task continuation, IEnumerable<string> paths, Path previous)
+        {
+            if (_task.IsCompleted)
+            {
+                return new Path(continuation, paths, previous);
+            }
+            Task antecedent = _task;
+            return new Path(Task.Run(async () =>
+            {
+                await antecedent;
+                await continuation;
+            }), paths, previous);
+        }
+
+        Path IPathChain.Chain(Task continuation)
+        {
+            if (_task.IsCompleted)
+            {
+                return new Path(continuation, Chain.Paths, this);
+            }
+            Task antecedent = _task;
+            return new Path(Task.Run(async () =>
+            {
+                await antecedent;
+                await continuation;
+            }), _isPathCached, _pathCache, _pathResolver, this);
+        }
+
+        Path IPathChain.Chain(Task continuation, Func<IEnumerable<string>> pathResolver, Path previous)
+        {
+            if (_task.IsCompleted)
+            {
+                return new Path(continuation, pathResolver(), previous);
+            }
+            Task antecedent = _task;
+            return new Path(Task.Run(async () =>
+            {
+                await antecedent;
+                await continuation;
+            }), pathResolver, previous);
+        }
+
+        Path IPathChain.Chain(Task continuation, Func<IEnumerable<string>> pathResolver)
+            => Chain.Chain(continuation, pathResolver, this);
+
+        Path IPathChain.Chain(Func<Task> continuationFactory, IEnumerable<string> paths, Path previous)
+        {
+            if (_task.IsCompleted)
+            {
+                return new Path(continuationFactory(), paths, previous);
+            }
+            Task antecedent = _task;
+            return new Path(Task.Run(async () =>
+            {
+                await antecedent;
+                await continuationFactory();
+            }), paths, previous);
+        }
+
+        Path IPathChain.Chain(Func<Task> continuationFactory)
+        {
+            if (_task.IsCompleted)
+            {
+                return new Path(continuationFactory(), _isPathCached, _pathCache, _pathResolver, this);
+            }
+            Task antecedent = _task;
+            return new Path(Task.Run(async () =>
+            {
+                await antecedent;
+                await continuationFactory();
+            }), _isPathCached, _pathCache, _pathResolver, this);
+        }
+
+        Path IPathChain.Chain(Func<Task> continuationFactory, Func<IEnumerable<string>> pathResolver, Path previous)
+        {
+            if (_task.IsCompleted)
+            {
+                return new Path(continuationFactory(), pathResolver(), previous);
+            }
+            Task antecedent = _task;
+            return new Path(Task.Run(async () =>
+            {
+                await antecedent;
+                await continuationFactory();
+            }), pathResolver, previous);
+        }
+
+        Path IPathChain.Chain(Func<Task> continuationFactory, Func<IEnumerable<string>> pathResolver)
+            => Chain.Chain(continuationFactory, pathResolver, this);
+
+        Awaitable<T> IPathChain.Return<T>(Func<T> valueResolver) => new Awaitable<T>(valueResolver, _task);
+
+        Awaitable<T> IPathChain.Return<T>(T value) => new Awaitable<T>(value, _task);
+
+        IEnumerable<string> IPathChain.Paths
+            => _task.IsCompleted ? _isPathCached ? _pathCache : _pathCache = _pathResolver()
+                : throw new InvalidOperationException("Can't evaluate the paths on a pending path operation.");
+        #endregion
+
+        #region equality, hash code and cast to/from string
+        public static explicit operator string(Path path) => path.FirstPath();
+
+        public static explicit operator Path(string path) => new Path(path);
+
+        public static bool operator ==(Path path1, Path path2)
+            => ReferenceEquals(path1, path2) ? true : path1.IsSameAs(path2);
+
+        public static bool operator !=(Path path1, Path path2) => !(path1 == path2);
+
+        // Overrides
+        public override bool Equals(object obj)
+        {
+            if (!(obj is Path paths))
+            {
+                if (!(obj is string str)) return false;
+                if (!_task.IsCompleted)
+                {
+                    throw WasntAwaitedException("Equality");
+                }
+                IEnumerator<string> enumerator = Chain.Paths.GetEnumerator();
+                if (!enumerator.MoveNext()) return false;
+                if (enumerator.Current != str) return false;
+                return !enumerator.MoveNext();
+            }
+            return IsSameAs(paths);
+        }
+
+        protected bool IsSameAs(Path other)
+            => _task.IsCompleted && other._task.IsCompleted
+                ? new HashSet<string>(Chain.Paths).SetEquals(other.Chain.Paths)
+                : throw WasntAwaitedException("IsSameAs");
+
+        public override int GetHashCode()
+        {
+            if (!_task.IsCompleted)
+            {
+                throw WasntAwaitedException("GetHashCode");
+            }
+            var hashCode = new HashCode();
+            foreach (string path in Chain.Paths)
+            {
+                hashCode.Add(path);
+            }
+            return hashCode.ToHashCode();
+        }
+
+        private Exception WasntAwaitedException(string operation)
+            => new InvalidOperationException(
+                        $"{operation} can't be evaluated on paths that have pending tasks. " +
+                        "Await the path before performing this operation.");
+
+        #endregion
+
+        #region enumerable<Path>
+        public IEnumerator<Path> GetEnumerator()
+            => _task.IsCompleted
+                ? Chain.Paths.Select(path => new Path(path, this)).GetEnumerator()
+                : throw WasntAwaitedException("GetEnumerator");
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        #endregion
+
+        #region task-like implementation
+        public Path GetAwaiter() => this;
+
+        public bool IsCompleted => _task?.IsCompleted ?? true;
+
+        void INotifyCompletion.OnCompleted(Action continuation)
+        {
+            if (_task.IsCompleted)
+            {
+                continuation();
+                return;
+            }
+            Task antecedent = _task;
+            _task = Task.Run(async () =>
+            {
+                await antecedent;
+                continuation();
+            });
+        }
+
+        public Path GetResult() => this;
+        #endregion
+
+        #region static paths and methods
+        /// <summary>
+        /// An empty set path. Can be used as default value. C#'s default keyword is useless for paths.
+        /// </summary>
+        public static Path Empty { get; } = new Path(Array.Empty<string>());
 
         /// <summary>
         /// The current path for the application.
         /// </summary>
-        public static Path Current {
-            get { return new Path(Directory.GetCurrentDirectory()); }
-            set { Directory.SetCurrentDirectory(value.FirstPath()); }
+        public static Path Current
+        {
+            get => new Path(Directory.GetCurrentDirectory());
+            set => Directory.SetCurrentDirectory(value.FirstPath());
         }
 
         public static Path Root => new Path(SystemPath.GetPathRoot(Current.ToString()));
@@ -88,126 +383,79 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="directoryName">The name of the directory to create.</param>
         /// <returns>The path of the new directory.</returns>
-        public static Path CreateDirectory(string directoryName) {
+        public static Path CreateDirectory(string directoryName)
+        {
             Directory.CreateDirectory(directoryName);
             return new Path(directoryName);
         }
+        #endregion
 
+        #region properties
         /// <summary>
-        /// Creates a new path from its string token representation.
+        /// The paths in this Path set.
         /// </summary>
-        /// <example>Path.Get("c:", "foo", "bar") will get c:\foo\bar on Windows.</example>
-        /// <param name="pathTokens">The tokens for the path.</param>
-        /// <returns>The path object.</returns>
-        public static Path Get(params string[] pathTokens) {
-            if (pathTokens.Length == 0) {
-                throw new ArgumentException("At least one token needs to be specified.", nameof(pathTokens));
-            }
-            return new Path(SystemPath.Combine(pathTokens));
-        }
-
-        public static explicit operator string(Path path) => path.FirstPath();
-
-        public static explicit operator Path(string path) => new Path(path);
-
-        public static bool operator ==(Path path1, Path path2) {
-            if (ReferenceEquals(path1, path2)) return true;
-            if (((object)path1 == null) || ((object)path2 == null)) return false;
-            return path1.IsSameAs(path2);
-        }
-
-        public static bool operator !=(Path path1, Path path2) => !(path1 == path2);
-
-        // Overrides
-        public override bool Equals(object obj) {
-            var paths = obj as Path;
-            if (paths != null) {
-                return IsSameAs(paths);
-            }
-            var str = obj as string;
-            if (str == null) return false;
-            var enumerator = _paths.GetEnumerator();
-            if (!enumerator.MoveNext()) return false;
-            if (enumerator.Current != str) return false;
-            return !enumerator.MoveNext();
-        }
-
-        protected bool IsSameAs(Path path) {
-            var dict = _paths.ToDictionary(s => s, s => false);
-            foreach (var p in path._paths) {
-                if (!dict.ContainsKey(p)) return false;
-                dict[p] = true;
-            }
-            return !dict.ContainsValue(false);
-        }
-
-        public override int GetHashCode() => _paths.Aggregate(17, (h, p) => 23 * h + (p ?? "").GetHashCode());
+        public Awaitable<IEnumerable<string>> Paths
+            => Chain.Return(() => Chain.Paths);
 
         /// <summary>
         /// The name of the directory for the first path in the collection.
         /// This is the string representation of the parent directory path.
         /// </summary>
-        public string DirectoryName => SystemPath.GetDirectoryName(FirstPath());
+        public Awaitable<string> DirectoryName => Chain.Return(() => SystemPath.GetDirectoryName(FirstPath()));
 
         /// <summary>
         /// The extension for the first path in the collection, including the ".".
         /// </summary>
-        public string Extension => SystemPath.GetExtension(FirstPath());
+        public Awaitable<string> Extension => Chain.Return(() => SystemPath.GetExtension(FirstPath()));
 
         /// <summary>
         /// The filename or folder name for the first path in the collection, including the extension.
         /// </summary>
-        public string FileName => SystemPath.GetFileName(FirstPath());
+        public Awaitable<string> FileName => Chain.Return(() => SystemPath.GetFileName(FirstPath()));
 
         /// <summary>
         /// The filename or folder name for the first path in the collection, without the extension.
         /// </summary>
-        public string FileNameWithoutExtension => SystemPath.GetFileNameWithoutExtension(FirstPath());
+        public Awaitable<string> FileNameWithoutExtension
+            => Chain.Return(() => SystemPath.GetFileNameWithoutExtension(FirstPath()));
 
         /// <summary>
         /// The fully qualified path string for the first path in the collection.
         /// </summary>
-        public string FullPath => SystemPath.GetFullPath(FirstPath());
+        public Awaitable<string> FullPath => Chain.Return(() => SystemPath.GetFullPath(FirstPath()));
 
         /// <summary>
-        /// The fully qualified path strings for all the paths in the collection.
+        /// The fully qualified path strings for all the paths in the set.
         /// </summary>
-        public string[] FullPaths {
-            get {
-                var result = new HashSet<string>();
-                foreach (var path in _paths) {
-                    result.Add(SystemPath.GetFullPath(path));
-                }
-                return result.ToArray();
-            }
-        }
+        public Awaitable<string[]> FullPaths
+            => Chain.Return(() => Chain.Paths.Select(path => SystemPath.GetFullPath(path)).Distinct().ToArray());
 
         /// <summary>
         /// True all the paths in the collection have an extension.
         /// </summary>
-        public bool HasExtension => _paths.All(SystemPath.HasExtension);
+        public Awaitable<bool> HasExtension => Chain.Return(() => Chain.Paths.All(SystemPath.HasExtension));
 
         /// <summary>
         /// True if each path in the set is the path of
         /// a directory in the file system.
         /// </summary>
-        public bool IsDirectory => _paths.All(Directory.Exists);
+        public Awaitable<bool> IsDirectory => Chain.Return(() => Chain.Paths.All(Directory.Exists));
 
         /// <summary>
         /// True if all the files in the collection are encrypted on disc.
         /// </summary>
-        public bool IsEncrypted
-            => _paths.All(p =>
+        public Awaitable<bool> IsEncrypted
+            => Chain.Return(() => Chain.Paths.All(p =>
                 Directory.Exists(p) ||
-                (File.GetAttributes(p) & FileAttributes.Encrypted) != 0);
+                (File.GetAttributes(p) & FileAttributes.Encrypted) != 0));
 
         /// <summary>
         /// True if all the paths in the collection are fully-qualified.
         /// </summary>
-        public bool IsRooted => _paths.All(SystemPath.IsPathRooted);
+        public Awaitable<bool> IsRooted => Chain.Return(() => Chain.Paths.All(SystemPath.IsPathRooted));
 
         /// <summary>
-        /// The parent paths for the paths in the collection.
+        /// The parent path for the first path in the collection.
         /// </summary>
         public Path Parent() => First().Up();
 
@@ -220,17 +468,10 @@ namespace Fluent.IO {
         /// The root directory of the first path of the collection,
         /// such as "C:\".
         /// </summary>
-        public string PathRoot => SystemPath.GetPathRoot(FirstPath());
+        public Awaitable<string> PathRoot => Chain.Return(() => SystemPath.GetPathRoot(FirstPath()));
+        #endregion
 
-        /// <summary>
-        /// The previous set, from which the current one was created.
-        /// </summary>
-        public Path Previous() => _previous;
-
-        public IEnumerator<Path> GetEnumerator() => _paths.Select(path => new Path(path, this)).GetEnumerator();
-
-        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
-
+        #region file extensions
         /// <summary>
         /// Changes the path on each path in the set.
         /// Does not do any physical change to the file system.
@@ -245,29 +486,22 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="extensionTransformation">A function that maps each path to an extension.</param>
         /// <returns>The set of files with the new extension</returns>
-        public Path ChangeExtension(Func<Path, string> extensionTransformation) {
-            var result = new HashSet<string>();
-            foreach (var path in _paths.Where(p => !Directory.Exists(p))) {
-                result.Add(
-                    SystemPath.ChangeExtension(path,
-                        extensionTransformation(new Path(path, this))));
-            }
-            return new Path(result, this);
-        }
+        public Path ChangeExtension(Func<Path, string> extensionTransformation)
+            => Chain.Chain(() => Chain.Paths
+                    .Where(p => !Directory.Exists(p))
+                    .Select(p => SystemPath.ChangeExtension(p, extensionTransformation(new Path(p, this)))));
+        #endregion
 
+        #region combine
         /// <summary>
         /// Combines each path in the set with the specified file or directory name.
         /// Does not do any physical change to the file system.
         /// </summary>
         /// <param name="directoryNameGenerator">A function that maps each path to a file or directory name.</param>
         /// <returns>The set</returns>
-        public Path Combine(Func<Path, string> directoryNameGenerator) {
-            var result = new HashSet<string>();
-            foreach (var path in _paths) {
-                result.Add(SystemPath.Combine(path, directoryNameGenerator(new Path(path, this))));
-            }
-            return new Path(result, this);
-        }
+        public Path Combine(Func<Path, string> directoryNameGenerator)
+            => Chain.Chain(() => Chain.Paths
+                    .Select(p => SystemPath.Combine(p, directoryNameGenerator(new Path(p, this)))));
 
         /// <summary>
         /// Combines each path in the set with the specified relative path.
@@ -275,8 +509,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="relativePath">The path to combine. Only the first path is used.</param>
         /// <returns>The combined paths.</returns>
-        public Path Combine(Path relativePath)
-            => Combine(relativePath.Tokens);
+        public Path Combine(Path relativePath) => Combine(relativePath.Tokens);
 
         /// <summary>
         /// Combines each path in the set with the specified tokens.
@@ -284,21 +517,14 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="pathTokens">One or several directory and file names to combine</param>
         /// <returns>The new set of combined paths</returns>
-        public Path Combine(params string[] pathTokens) {
-            if (pathTokens.Length == 0) return this;
-            if (pathTokens.Length == 1) {
-                return Combine(p => pathTokens[0]);
-            }
-            var result = new HashSet<string>();
-            var concatenated = new string[pathTokens.Length + 1];
-            pathTokens.CopyTo(concatenated, 1);
-            foreach (var path in _paths) {
-                concatenated[0] = path;
-                result.Add(SystemPath.Combine(concatenated));
-            }
-            return new Path(result, this);
-        }
+        public Path Combine(params string[] pathTokens)
+            => pathTokens.Length == 0 ? this
+                : pathTokens.Length == 1 ? Combine(p => pathTokens[0])
+                : Chain.Chain(() => Chain.Paths
+                    .Select(p => SystemPath.Combine(new string[] { p }.Concat(pathTokens).ToArray())));
+        #endregion
 
+        #region copy
         /// <summary>
         /// Copies the file or folder for this path to another location.
         /// The copy is not recursive.
@@ -375,74 +601,93 @@ namespace Fluent.IO {
         /// <param name="overwrite">Destination file overwriting policy. Default is never.</param>
         /// <param name="recursive">True if the copy should be deep and go into subdirectories recursively. Default is false.</param>
         /// <returns>The set</returns>
-        public Path Copy(Func<Path, Path> pathMapping, Overwrite overwrite, bool recursive) {
+        public Path Copy(Func<Path, Path> pathMapping, Overwrite overwrite, bool recursive)
+        {
             var result = new HashSet<string>();
-            foreach (var sourcePath in _paths) {
-                if (sourcePath == null) continue;
-                var source = new Path(sourcePath, this);
-                var dest = pathMapping(source);
-                if (dest == null) continue;
-                foreach (var destPath in dest._paths) {
-                    var p = destPath;
-                    if (Directory.Exists(sourcePath)) {
-                        // source is a directory
-                        CopyDirectory(sourcePath, p, overwrite, recursive);
+            return Chain.Chain(async () =>
+            {
+                var tasks = new List<Task>();
+                foreach (string sourcePath in Chain.Paths)
+                {
+                    if (sourcePath == null) continue;
+                    var source = new Path(sourcePath, this);
+                    Path dest = pathMapping(source);
+                    if (!dest._task.IsCompleted)
+                    {
+                        await dest._task;
                     }
-                    else {
-                        // source is a file
-                        p = Directory.Exists(p)
-                            ? SystemPath.Combine(p, SystemPath.GetFileName(sourcePath)) : p;
-                        CopyFile(sourcePath, p, overwrite);
-                        result.Add(p);
+                    foreach (string destPath in ((IPathChain)dest).Paths)
+                    {
+                        string p = destPath;
+                        if (Directory.Exists(sourcePath))
+                        {
+                            // source is a directory
+                            tasks.Add(CopyDirectory(sourcePath, p, overwrite, recursive));
+                        }
+                        else
+                        {
+                            // source is a file
+                            p = Directory.Exists(p)
+                                ? SystemPath.Combine(p, SystemPath.GetFileName(sourcePath)) : p;
+                            tasks.Add(CopyFile(sourcePath, p, overwrite));
+                            result.Add(p);
+                        }
                     }
                 }
-            }
-            return new Path(result, this);
+                await Task.WhenAll(tasks);
+                return result;
+            });
         }
 
-        private static void CopyFile(string srcPath, string destPath, Overwrite overwrite) {
-            if ((overwrite == Overwrite.Throw) && File.Exists(destPath)) {
-                throw new InvalidOperationException($"File {destPath} already exists.");
-            }
-            if (((overwrite != Overwrite.Always) &&
-                ((overwrite != Overwrite.Never) || File.Exists(destPath))) &&
-                ((overwrite != Overwrite.IfNewer) || (File.Exists(destPath) &&
-                (File.GetLastWriteTime(srcPath) <= File.GetLastWriteTime(destPath))))) return;
-            var dir = SystemPath.GetDirectoryName(destPath);
-            if (dir == null) {
-                throw new InvalidOperationException($"Directory {destPath} not found.");
-            }
-            if (!Directory.Exists(dir)) {
-                Directory.CreateDirectory(dir);
-            }
-            File.Copy(srcPath, destPath, true);
-        }
-
-        private static void CopyDirectory(
-            string source, string destination, Overwrite overwrite, bool recursive) {
-
-            if (!Directory.Exists(destination)) {
-                Directory.CreateDirectory(destination);
-            }
-            if (recursive) {
-                foreach (var subdirectory in Directory.GetDirectories(source)) {
-                    if (subdirectory == null) continue;
-                    CopyDirectory(
-                        subdirectory,
-                        SystemPath.Combine(
-                            destination,
-                            SystemPath.GetFileName(subdirectory)),
-                        overwrite, true);
+        private static Task CopyFile(string srcPath, string destPath, Overwrite overwrite)
+            => Task.Run(async () =>
+            {
+                if ((overwrite == Overwrite.Throw) && File.Exists(destPath))
+                {
+                    throw new InvalidOperationException($"File {destPath} already exists.");
                 }
-            }
-            foreach (var file in Directory.GetFiles(source)) {
-                if (file == null) continue;
-                CopyFile(
-                    file, SystemPath.Combine(
-                        destination, SystemPath.GetFileName(file)), overwrite);
-            }
-        }
+                if (((overwrite != Overwrite.Always) &&
+                    ((overwrite != Overwrite.Never) || File.Exists(destPath))) &&
+                    ((overwrite != Overwrite.IfNewer) || (File.Exists(destPath) &&
+                    (File.GetLastWriteTime(srcPath) <= File.GetLastWriteTime(destPath))))) return;
+                string dir = SystemPath.GetDirectoryName(destPath);
+                if (dir == null)
+                {
+                    throw new InvalidOperationException($"Directory {destPath} not found.");
+                }
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+                using var sourceStream = new FileStream(srcPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                using var destinationStream = new FileStream(destPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                await sourceStream.CopyToAsync(destinationStream);
+            });
 
+        private static Task CopyDirectory(string source, string destination, Overwrite overwrite, bool recursive)
+            => Task.Run(async () =>
+            {
+                if (!Directory.Exists(destination))
+                {
+                    Directory.CreateDirectory(destination);
+                }
+                var tasks = new List<Task>();
+                if (recursive)
+                {
+                    tasks.AddRange(Directory.GetDirectories(source)
+                        .Where(d => d != null)
+                        .Select(d => CopyDirectory(
+                            d,
+                            SystemPath.Combine(destination, SystemPath.GetFileName(d)), overwrite, true)));
+                }
+                tasks.AddRange(Directory.GetFiles(source)
+                    .Where(f => f != null)
+                    .Select(f => CopyFile(f, SystemPath.Combine(destination, SystemPath.GetFileName(f)), overwrite)));
+                await Task.WhenAll(tasks);
+            });
+        #endregion
+
+        #region create directory
         /// <summary>
         /// Creates subdirectories for each directory.
         /// </summary>
@@ -462,19 +707,11 @@ namespace Fluent.IO {
         /// If the function returns null, no directory is created.
         /// </param>
         /// <returns>The set</returns>
-        public Path CreateDirectories(Func<Path, Path> directoryNameGenerator) {
-            var result = new HashSet<string>();
-            foreach (var destPath in _paths
-                .Select(path => new Path(path, this))
-                .Select(directoryNameGenerator)
-                .Where(dest => dest != null)
-                .SelectMany(dest => dest._paths)) {
-
-                Directory.CreateDirectory(destPath);
-                result.Add(destPath);
-            }
-            return new Path(result, this);
-        }
+        public Path CreateDirectories(Func<Path, Path> directoryNameGenerator)
+            => Chain.Chain(() => Chain.Paths
+                    .Select(path => directoryNameGenerator(new Path(path, this)))
+                    .SelectMany(dest => ((IPathChain)dest).Paths),
+                path => Directory.CreateDirectory(path));
 
         /// <summary>
         /// Creates directories for each path in the set.
@@ -499,15 +736,11 @@ namespace Fluent.IO {
         public Path CreateSubDirectory(string directoryName)
             => CreateSubDirectories(p => directoryName);
 
-        public Path CreateSubDirectories(Func<Path, string> directoryNameGenerator) {
-            var combined = Combine(directoryNameGenerator);
-            var result = new HashSet<string>();
-            foreach (var path in combined._paths) {
-                Directory.CreateDirectory(path);
-                result.Add(path);
-            }
-            return new Path(result, this);
-        }
+        public Path CreateSubDirectories(Func<Path, string> directoryNameGenerator)
+            => Chain(
+                Combine(directoryNameGenerator).Paths,
+                path => Directory.CreateDirectory(path));
+        #endregion
 
         /// <summary>
         /// Creates a file under the first path in the set.
@@ -543,20 +776,16 @@ namespace Fluent.IO {
         /// <param name="fileNameGenerator">A function that returns a file name for each path.</param>
         /// <param name="fileContentGenerator">A function that returns file content for each path.</param>
         /// <returns>The set of created files.</returns>
-        public Path CreateFiles(
-            Func<Path, Path> fileNameGenerator,
-            Func<Path, string> fileContentGenerator) {
-
-            var result = new HashSet<string>();
-            foreach (var path in _paths) {
-                var p = new Path(path, this);
-                var newFilePath = p.Combine(fileNameGenerator(p).FirstPath()).FirstPath();
-                EnsureDirectoryExists(newFilePath);
-                File.WriteAllText(newFilePath, fileContentGenerator(p));
-                result.Add(newFilePath);
-            }
-            return new Path(result, this);
-        }
+        public Path CreateFiles(Func<Path, Path> fileNameGenerator, Func<string, string> fileContentGenerator)
+            => Chain(
+                Paths
+                    .Select(path => new Path(path, this))
+                    .SelectMany(path => path.Combine(fileNameGenerator(path).FirstPath()).Paths),
+                async path =>
+                {
+                    EnsureDirectoryExists(path);
+                    await File.WriteAllTextAsync(path, fileContentGenerator(path));
+                });
 
         /// <summary>
         /// Creates files under each of the paths in the set.
@@ -567,19 +796,17 @@ namespace Fluent.IO {
         /// <returns>The set of created files.</returns>
         public Path CreateFiles(
             Func<Path, Path> fileNameGenerator,
-            Func<Path, string> fileContentGenerator,
-            Encoding encoding) {
-
-            var result = new HashSet<string>();
-            foreach (var path in _paths) {
-                var p = new Path(path, this);
-                var newFilePath = p.Combine(fileNameGenerator(p).FirstPath()).FirstPath();
-                EnsureDirectoryExists(newFilePath);
-                File.WriteAllText(newFilePath, fileContentGenerator(p), encoding);
-                result.Add(newFilePath);
-            }
-            return new Path(result, this);
-        }
+            Func<string, string> fileContentGenerator,
+            Encoding encoding)
+            => Chain(
+                Paths
+                    .Select(path => new Path(path, this))
+                    .SelectMany(path => path.Combine(fileNameGenerator(path).FirstPath()).Paths),
+                async path =>
+                {
+                    EnsureDirectoryExists(path);
+                    await File.WriteAllTextAsync(path, fileContentGenerator(path), encoding);
+                });
 
         /// <summary>
         /// Creates files under each of the paths in the set.
@@ -589,18 +816,16 @@ namespace Fluent.IO {
         /// <returns>The set of created files.</returns>
         public Path CreateFiles(
             Func<Path, Path> fileNameGenerator,
-            Func<Path, byte[]> fileContentGenerator) {
-
-            var result = new HashSet<string>();
-            foreach (var path in _paths) {
-                var p = new Path(path, this);
-                var newFilePath = p.Combine(fileNameGenerator(p).FirstPath()).FirstPath();
-                EnsureDirectoryExists(newFilePath);
-                File.WriteAllBytes(newFilePath, fileContentGenerator(p));
-                result.Add(newFilePath);
-            }
-            return new Path(result, this);
-        }
+            Func<string, byte[]> fileContentGenerator)
+            => Chain(
+                Paths
+                    .Select(path => new Path(path, this))
+                    .SelectMany(path => path.Combine(fileNameGenerator(path).FirstPath()).Paths),
+                async path =>
+                {
+                    EnsureDirectoryExists(path);
+                    await File.WriteAllBytesAsync(path, fileContentGenerator(path));
+                });
 
         /// <summary>
         /// Deletes this path from the file system.
@@ -613,23 +838,35 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="recursive">If true, also deletes the content of directories. Default is false.</param>
         /// <returns>The set of parent directories of all deleted file system entries.</returns>
-        public Path Delete(bool recursive) {
+        public Path Delete(bool recursive)
+        {
             var result = new HashSet<string>();
-            foreach (var path in _paths) {
+            var fileTasks = new List<Task>();
+            var directoryTasks = new List<Task>();
+            foreach (string path in Paths) {
                 if (Directory.Exists(path)) {
                     if (recursive) {
-                        foreach (var file in Directory.GetFiles(path, "*", SearchOption.AllDirectories)) {
-                            File.Delete(file);
+                        foreach (string file in Directory.GetFiles(path, "*", SearchOption.AllDirectories)) {
+                            fileTasks.Add(Task.Run(() => File.Delete(file)));
                         }
                     }
-                    Directory.Delete(path, recursive);
+                    directoryTasks.Add(Task.Run(() => Directory.Delete(path, recursive)));
                 }
                 else {
-                    File.Delete(path);
+                    fileTasks.Add(Task.Run(() => File.Delete(path)));
                 }
                 result.Add(SystemPath.GetDirectoryName(path));
             }
-            return new Path(result, this);
+            // Files can be deleted in parallel, directories should be sequential after files are done.
+            var task = Task.Run(async () =>
+            {
+                await Task.WhenAll(fileTasks);
+                foreach(Task directoryTask in directoryTasks)
+                {
+                    await directoryTask;
+                }
+            });
+            return Chain(task, result, this);
         }
 
         /// <summary>
@@ -637,13 +874,8 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="predicate">A predicate that returns true for the entries that must be in the returned set.</param>
         /// <returns>The filtered set.</returns>
-        public Path Where(Predicate<Path> predicate) {
-            var result = new HashSet<string>();
-            foreach (var path in _paths.Where(path => predicate(new Path(path, this)))) {
-                result.Add(path);
-            }
-            return new Path(result, this);
-        }
+        public Path Where(Predicate<Path> predicate)
+            => new Path(_task, Paths.Where(path => predicate(new Path(path, this))), this);
 
         /// <summary>
         /// Filters the set 
@@ -653,7 +885,7 @@ namespace Fluent.IO {
         public Path WhereExtensionIs(params string[] extensions) 
             => Where(
                 p => {
-                    var ext = p.Extension;
+                    string ext = p.Extension;
                     return extensions.Contains(ext) ||
                            (ext.Length > 0 && extensions.Contains(ext.Substring(1)));
                 });
@@ -663,12 +895,16 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="action">An action that takes the path of each entry as its parameter.</param>
         /// <returns>The set</returns>
-        public Path ForEach(Action<Path> action) {
-            foreach(var path in _paths) {
-                action(new Path(path, this));
-            }
-            return this;
-        }
+        public Path ForEach(Action<Path> action)
+            => Chain(Paths, p => action(new Path(p, this)));
+
+        /// <summary>
+        /// Executes an action for each file or folder in the set, in parallel.
+        /// </summary>
+        /// <param name="action">An action that takes the path of each entry as its parameter.</param>
+        /// <returns>The set</returns>
+        public Path ForEachParallel(Func<Path, Task> action)
+            => Chain(Task.WhenAll(Paths.Select(p => action(new Path(p, this)))), Paths, Previous);
 
         /// <summary>
         /// Gets the subdirectories of folders in the set.
@@ -708,17 +944,13 @@ namespace Fluent.IO {
         /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of directories that satisfy the predicate.</returns>
-        public Path Directories(Predicate<Path> predicate, string searchPattern, bool recursive) {
-            var result = new HashSet<string>();
-            foreach (var dir in _paths
-                .Select(p => Directory.GetDirectories(p, searchPattern,
-                    recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
-                .SelectMany(dirs => dirs.Where(dir => predicate(new Path(dir, this))))) {
-
-                result.Add(dir);
-            }
-            return new Path(result, this);
-        }
+        public Path Directories(Predicate<Path> predicate, string searchPattern, bool recursive)
+            => new Path(
+                _task,
+                Paths
+                    .Select(p => Directory.GetDirectories(p, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
+                    .SelectMany(dirs => dirs.Where(dir => predicate(new Path(dir, this)))),
+                this);
 
         /// <summary>
         /// Gets all the files under the directories of the set.
@@ -758,7 +990,7 @@ namespace Fluent.IO {
         /// <returns>The set of paths that satisfy the predicate.</returns>
         public Path Files(Predicate<Path> predicate, string searchPattern, bool recursive) {
             var result = new HashSet<string>();
-            foreach (var file in _paths
+            foreach (string file in Paths
                 .Select(p => Directory.GetFiles(p, searchPattern,
                     recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
                 .SelectMany(files => files.Where(f => predicate(new Path(f, this))))) {
@@ -808,16 +1040,16 @@ namespace Fluent.IO {
         /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
         public Path FileSystemEntries(Predicate<Path> predicate, string searchPattern, bool recursive) {
             var result = new HashSet<string>();
-            var searchOptions = recursive
+            SearchOption searchOptions = recursive
                 ? SearchOption.AllDirectories
                 : SearchOption.TopDirectoryOnly;
-            foreach (var p in _paths) {
-                var directories = Directory.GetDirectories(p, searchPattern, searchOptions);
-                foreach (var entry in directories.Where(d => predicate(new Path(d, this)))) {
+            foreach (string p in Paths) {
+                string[] directories = Directory.GetDirectories(p, searchPattern, searchOptions);
+                foreach (string entry in directories.Where(d => predicate(new Path(d, this)))) {
                     result.Add(entry);
                 }
-                var files = Directory.GetFiles(p, searchPattern, searchOptions);
-                foreach (var entry in files.Where(f => predicate(new Path(f, this)))) {
+                string[] files = Directory.GetFiles(p, searchPattern, searchOptions);
+                foreach (string entry in files.Where(f => predicate(new Path(f, this)))) {
                     result.Add(entry);
                 }
             }
@@ -829,7 +1061,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <returns>A new path from the first path of the set</returns>
         public Path First() {
-            var first = _paths.FirstOrDefault();
+            string first = Paths.FirstOrDefault();
             if (first != null) {
                 return new Path(first, this);
             }
@@ -838,7 +1070,7 @@ namespace Fluent.IO {
         }
 
         protected string FirstPath() {
-            var first = _paths.FirstOrDefault();
+            string first = Paths.FirstOrDefault();
             if (first != null) {
                 return first;
             }
@@ -862,9 +1094,9 @@ namespace Fluent.IO {
         /// <param name="action">The action to execute for each match</param>
         /// <returns>The set</returns>
         public Path Grep(Regex regularExpression, Action<Path, Match, string> action) {
-            foreach (var path in _paths.Where(p => !Directory.Exists(p))) {
-                var contents = File.ReadAllText(path);
-                var matches = regularExpression.Matches(contents);
+            foreach (string path in Paths.Where(p => !Directory.Exists(p))) {
+                string contents = File.ReadAllText(path);
+                MatchCollection matches = regularExpression.Matches(contents);
                 var p = new Path(path, this);
                 foreach (Match match in matches) {
                     action(p, match, contents);
@@ -907,15 +1139,16 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="parentGenerator">A function that returns a path to which the new one is relative to for each of the paths in the set.</param>
         /// <returns>The set of relative paths.</returns>
-        public Path MakeRelativeTo(Func<Path, Path> parentGenerator) {
+        public Path MakeRelativeTo(Func<Path, Path> parentGenerator)
+        {
             var result = new HashSet<string>();
-            foreach (var path in _paths) {
+            foreach (string path in Paths) {
                 if (!SystemPath.IsPathRooted(path)) {
                     throw new InvalidOperationException("Path must be rooted to be made relative.");
                 }
-                var fullPath = SystemPath.GetFullPath(path);
-                var parentFull = parentGenerator(new Path(path, this)).FullPath;
-                if (parentFull[parentFull.Length - 1] != SystemPath.DirectorySeparatorChar) {
+                string fullPath = SystemPath.GetFullPath(path);
+                string parentFull = parentGenerator(new Path(path, this)).FullPath;
+                if (parentFull[^1] != SystemPath.DirectorySeparatorChar) {
                     parentFull += SystemPath.DirectorySeparatorChar;
                 }
                 if (!fullPath.StartsWith(parentFull)) {
@@ -931,14 +1164,14 @@ namespace Fluent.IO {
         /// </summary>
         /// <param name="pathMapping">A function that takes a path and returns a transformed path.</param>
         /// <returns>The mapped set.</returns>
-        public Path Map(Func<Path, Path> pathMapping) {
+        public Path Map(Func<Path, Path> pathMapping)
+        {
             var result = new HashSet<string>();
-            foreach (var mapped in
-                from path in _paths
+            foreach (string mapped in
+                from path in Paths
                 select pathMapping(new Path(path))
                 into mappedPaths
-                where mappedPaths != null
-                from mapped in mappedPaths._paths select mapped) {
+                from mapped in mappedPaths.Paths select mapped) {
 
                 result.Add(mapped);
             }
@@ -975,18 +1208,15 @@ namespace Fluent.IO {
         /// <param name="pathMapping">The function that maps from the current path to the new one.</param>
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <returns>The moved set.</returns>
-        public Path Move(
-            Func<Path, Path> pathMapping,
-            Overwrite overwrite) {
-
+        public Path Move(Func<Path, Path> pathMapping, Overwrite overwrite)
+        {
             var result = new HashSet<string>();
-            foreach (var path in _paths) {
+            foreach (string path in Paths) {
                 if (path == null) continue;
                 var source = new Path(path, this);
-                var dest = pathMapping(source);
-                if (dest == null) continue;
-                foreach (var destPath in dest._paths) {
-                    var d = destPath;
+                Path dest = pathMapping(source);
+                foreach (string destPath in dest.Paths) {
+                    string d = destPath;
                     if (Directory.Exists(path)) {
                         MoveDirectory(path, d, overwrite);
                     }
@@ -1001,7 +1231,8 @@ namespace Fluent.IO {
             return new Path(result, this);
         }
 
-        private static bool MoveFile(string srcPath, string destPath, Overwrite overwrite) {
+        private static bool MoveFile(string srcPath, string destPath, Overwrite overwrite)
+        {
             if ((overwrite == Overwrite.Throw) && File.Exists(destPath)) {
                 throw new InvalidOperationException($"File {destPath} already exists.");
             }
@@ -1016,7 +1247,7 @@ namespace Fluent.IO {
         }
 
         private static void EnsureDirectoryExists(string destPath) {
-            var dir = SystemPath.GetDirectoryName(destPath);
+            string dir = SystemPath.GetDirectoryName(destPath);
             if (dir == null) {
                 throw new InvalidOperationException($"Directory {destPath} not found.");
             }
@@ -1028,21 +1259,19 @@ namespace Fluent.IO {
         private static bool MoveDirectory(
             string source, string destination, Overwrite overwrite) {
 
-            var everythingMoved = true;
+            bool everythingMoved = true;
             if (!Directory.Exists(destination)) {
                 Directory.CreateDirectory(destination);
             }
-            foreach (var subdirectory in Directory.GetDirectories(source)) {
+            foreach (string subdirectory in Directory.GetDirectories(source)) {
                 if (subdirectory == null) continue;
                 everythingMoved &=
                     MoveDirectory(subdirectory,
                         SystemPath.Combine(destination, SystemPath.GetFileName(subdirectory)), overwrite);
             }
-            foreach (var file in Directory.GetFiles(source)) {
+            foreach (string file in Directory.GetFiles(source)) {
                 if (file == null) continue;
-                everythingMoved &=
-                    MoveFile(file,
-                        SystemPath.Combine(destination, SystemPath.GetFileName(file)), overwrite);
+                everythingMoved &= MoveFile(file, SystemPath.Combine(destination, SystemPath.GetFileName(file)), overwrite);
             }
             if (everythingMoved) {
                 Directory.Delete(source);
@@ -1059,10 +1288,9 @@ namespace Fluent.IO {
         /// <param name="share">The FileShare to use. Default is None.</param>
         /// <returns>The set</returns>
         public Path Open(Action<FileStream> action, FileMode mode, FileAccess access, FileShare share) {
-            foreach (var path in _paths) {
-                using (var stream = File.Open(path, mode, access, share)) {
-                    action(stream);
-                }
+            foreach (string path in Paths) {
+                using FileStream stream = File.Open(path, mode, access, share);
+                action(stream);
             }
             return this;
         }
@@ -1097,10 +1325,9 @@ namespace Fluent.IO {
             FileAccess access,
             FileShare share) {
 
-            foreach (var path in _paths) {
-                using (var stream = File.Open(path, mode, access, share)) {
-                    action(stream, new Path(path, this));
-                }
+            foreach (string path in Paths) {
+                using FileStream stream = File.Open(path, mode, access, share);
+                action(stream, new Path(path, this));
             }
             return this;
         }
@@ -1122,7 +1349,7 @@ namespace Fluent.IO {
         /// </example>
         /// </summary>
         /// <returns>The previous path collection.</returns>
-        public Path End() => Previous();
+        public Path End() => Previous;
 
         /// <summary>
         /// Runs the provided process function on the content of the file
@@ -1140,10 +1367,10 @@ namespace Fluent.IO {
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
         public Path Process(Func<Path, string, string> processFunction) {
-            foreach (var path in _paths) {
+            foreach (string path in Paths) {
                 if (Directory.Exists(path)) continue;
                 var p = new Path(path, this);
-                var read = File.ReadAllText(path);
+                string read = File.ReadAllText(path);
                 File.WriteAllText(path, processFunction(p, read));
             }
             return this;
@@ -1165,10 +1392,10 @@ namespace Fluent.IO {
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
         public Path Process(Func<Path, byte[], byte[]> processFunction) {
-            foreach (var path in _paths) {
+            foreach (string path in Paths) {
                 if (Directory.Exists(path)) continue;
                 var p = new Path(path, this);
-                var read = File.ReadAllBytes(path);
+                byte[] read = File.ReadAllBytes(path);
                 File.WriteAllBytes(path, processFunction(p, read));
             }
             return this;
@@ -1180,7 +1407,7 @@ namespace Fluent.IO {
         /// <returns>The string as read from the files.</returns>
         public string Read() 
             => string.Join("",
-                (from p in _paths
+                (from p in Paths
                     where !Directory.Exists(p)
                     select File.ReadAllText(p)));
 
@@ -1191,7 +1418,7 @@ namespace Fluent.IO {
         /// <returns>The string as read from the files.</returns>
         public string Read(Encoding encoding) 
             => string.Join("",
-                (from p in _paths
+                (from p in Paths
                     where !Directory.Exists(p)
                     select File.ReadAllText(p, encoding)));
 
@@ -1217,7 +1444,7 @@ namespace Fluent.IO {
         /// <param name="action">An action that takes the content of the file and its path.</param>
         /// <returns>The set</returns>
         public Path Read(Action<string, Path> action) {
-            foreach (var path in _paths) {
+            foreach (string path in Paths) {
                 action(File.ReadAllText(path), new Path(path, this));
             }
             return this;
@@ -1230,7 +1457,7 @@ namespace Fluent.IO {
         /// <param name="encoding">The encoding to use when reading the file.</param>
         /// <returns>The set</returns>
         public Path Read(Action<string, Path> action, Encoding encoding) {
-            foreach (var path in _paths) {
+            foreach (string path in Paths) {
                 action(File.ReadAllText(path, encoding), new Path(path, this));
             }
             return this;
@@ -1242,15 +1469,15 @@ namespace Fluent.IO {
         /// <returns>The bytes from the files.</returns>
         public byte[] ReadBytes() {
             var bytes = (
-                from p in _paths
+                from p in Paths
                 where !Directory.Exists(p)
                 select File.ReadAllBytes(p)
                 ).ToList();
             if (!bytes.Any()) return new byte[] {};
             if (bytes.Count() == 1) return bytes.First();
-            var result = new byte[bytes.Aggregate(0, (i, b) => i + b.Length)];
-            var offset = 0;
-            foreach (var b in bytes) {
+            byte[] result = new byte[bytes.Aggregate(0, (i, b) => i + b.Length)];
+            int offset = 0;
+            foreach (byte[] b in bytes) {
                 b.CopyTo(result, offset);
                 offset += b.Length;
             }
@@ -1270,7 +1497,7 @@ namespace Fluent.IO {
         /// <param name="action">An action that takes an array of bytes and a path.</param>
         /// <returns>The set</returns>
         public Path ReadBytes(Action<byte[], Path> action) {
-            foreach (var path in _paths) {
+            foreach (string path in Paths) {
                 action(File.ReadAllBytes(path), new Path(path, this));
             }
             return this;
@@ -1282,7 +1509,7 @@ namespace Fluent.IO {
         public string[] Tokens {
             get {
                 var tokens = new List<string>();
-                var current = FirstPath();
+                string current = FirstPath();
                 while (!string.IsNullOrEmpty(current)) {
                     tokens.Add(SystemPath.GetFileName(current));
                     current = SystemPath.GetDirectoryName(current);
@@ -1292,16 +1519,16 @@ namespace Fluent.IO {
             }
         }
 
-        public override string ToString() => string.Join(", ", _paths);
+        public override string ToString() => string.Join(", ", Paths);
 
-        public string[] ToStringArray() => _paths.ToArray();
+        public string[] ToStringArray() => Paths.ToArray();
 
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
-        public Path Add(params string[] paths) => new Path(paths.Union(_paths), this);
+        public Path Add(params string[] paths) => new Path(paths.Union(Paths), this);
 
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
@@ -1309,7 +1536,7 @@ namespace Fluent.IO {
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
         public Path Add(params Path[] paths) 
-            => new Path(paths.SelectMany(p => p._paths).Union(_paths), this);
+            => new Path(paths.SelectMany(p => p.Paths).Union(Paths), this);
 
         /// <summary>
         /// Gets all files under this path.
@@ -1337,7 +1564,7 @@ namespace Fluent.IO {
         /// <param name="action">An action to perform on the attributes of each file.</param>
         /// <returns>The attributes</returns>
         public Path Attributes(Action<Path, FileAttributes> action) {
-            foreach (var path in _paths.Where(path => !Directory.Exists(path))) {
+            foreach (string path in Paths.Where(path => !Directory.Exists(path))) {
                 action(new Path(path, this), File.GetAttributes(path));
             }
             return this;
@@ -1356,7 +1583,7 @@ namespace Fluent.IO {
         /// <param name="attributeFunction">A function that gives the attributes to set for each path.</param>
         /// <returns>The set</returns>
         public Path Attributes(Func<Path, FileAttributes> attributeFunction) {
-            foreach (var p in _paths) {
+            foreach (string p in Paths) {
                 File.SetAttributes(p, attributeFunction(new Path(p, this)));
             }
             return this;
@@ -1367,7 +1594,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <returns>The creation time</returns>
         public DateTime CreationTime() {
-            var firstPath = FirstPath();
+            string firstPath = FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetCreationTime(firstPath)
                 : File.GetCreationTime(firstPath);
@@ -1386,8 +1613,8 @@ namespace Fluent.IO {
         /// <param name="creationTimeFunction">A function that returns the new creation time for each path.</param>
         /// <returns>The set</returns>
         public Path CreationTime(Func<Path, DateTime> creationTimeFunction) {
-            foreach (var path in _paths) {
-                var t = creationTimeFunction(new Path(path, this));
+            foreach (string path in Paths) {
+                DateTime t = creationTimeFunction(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetCreationTime(path, t);
                 }
@@ -1403,7 +1630,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <returns>The UTC creation time</returns>
         public DateTime CreationTimeUtc() {
-            var firstPath = FirstPath();
+            string firstPath = FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetCreationTimeUtc(firstPath)
                 : File.GetCreationTimeUtc(firstPath);
@@ -1422,8 +1649,8 @@ namespace Fluent.IO {
         /// <param name="creationTimeFunctionUtc">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
         public Path CreationTimeUtc(Func<Path, DateTime> creationTimeFunctionUtc) {
-            foreach (var path in _paths) {
-                var t = creationTimeFunctionUtc(new Path(path, this));
+            foreach (string path in Paths) {
+                DateTime t = creationTimeFunctionUtc(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetCreationTimeUtc(path, t);
                 }
@@ -1438,14 +1665,14 @@ namespace Fluent.IO {
         /// Tests the existence of the paths in the set.
         /// </summary>
         /// <returns>True if all paths exist</returns>
-        public bool Exists =>_paths.All(path => (Directory.Exists(path) || File.Exists(path)));
+        public bool Exists =>Paths.All(path => (Directory.Exists(path) || File.Exists(path)));
 
         /// <summary>
         /// Gets the last access time of the first path in the set
         /// </summary>
         /// <returns>The last access time</returns>
         public DateTime LastAccessTime() {
-            var firstPath = FirstPath();
+            string firstPath = FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastAccessTime(firstPath)
                 : File.GetLastAccessTime(firstPath);
@@ -1464,8 +1691,8 @@ namespace Fluent.IO {
         /// <param name="lastAccessTimeFunction">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
         public Path LastAccessTime(Func<Path, DateTime> lastAccessTimeFunction) {
-            foreach (var path in _paths) {
-                var t = lastAccessTimeFunction(new Path(path, this));
+            foreach (string path in Paths) {
+                DateTime t = lastAccessTimeFunction(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastAccessTime(path, t);
                 }
@@ -1481,7 +1708,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <returns>The last access UTC time</returns>
         public DateTime LastAccessTimeUtc() {
-            var firstPath = FirstPath();
+            string firstPath = FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastAccessTimeUtc(firstPath)
                 : File.GetLastAccessTimeUtc(firstPath);
@@ -1500,8 +1727,8 @@ namespace Fluent.IO {
         /// <param name="lastAccessTimeFunctionUtc">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
         public Path LastAccessTimeUtc(Func<Path, DateTime> lastAccessTimeFunctionUtc) {
-            foreach (var path in _paths) {
-                var t = lastAccessTimeFunctionUtc(new Path(path, this));
+            foreach (string path in Paths) {
+                DateTime t = lastAccessTimeFunctionUtc(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastAccessTimeUtc(path, t);
                 }
@@ -1517,7 +1744,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <returns>The last write time</returns>
         public DateTime LastWriteTime() {
-            var firstPath = FirstPath();
+            string firstPath = FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastWriteTime(firstPath)
                 : File.GetLastWriteTime(firstPath);
@@ -1536,8 +1763,8 @@ namespace Fluent.IO {
         /// <param name="lastWriteTimeFunction">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
         public Path LastWriteTime(Func<Path, DateTime> lastWriteTimeFunction) {
-            foreach (var path in _paths) {
-                var t = lastWriteTimeFunction(new Path(path, this));
+            foreach (string path in Paths) {
+                DateTime t = lastWriteTimeFunction(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastWriteTime(path, t);
                 }
@@ -1553,7 +1780,7 @@ namespace Fluent.IO {
         /// </summary>
         /// <returns>The last write UTC time</returns>
         public DateTime LastWriteTimeUtc() {
-            var firstPath = FirstPath();
+            string firstPath = FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastWriteTimeUtc(firstPath)
                 : File.GetLastWriteTimeUtc(firstPath);
@@ -1572,8 +1799,8 @@ namespace Fluent.IO {
         /// <param name="lastWriteTimeFunctionUtc">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
         public Path LastWriteTimeUtc(Func<Path, DateTime> lastWriteTimeFunctionUtc) {
-            foreach (var path in _paths) {
-                var t = lastWriteTimeFunctionUtc(new Path(path, this));
+            foreach (string path in Paths) {
+                DateTime t = lastWriteTimeFunctionUtc(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastWriteTimeUtc(path, t);
                 }
@@ -1599,10 +1826,10 @@ namespace Fluent.IO {
         /// <returns>The new set</returns>
         public Path Up(int levels) {
             var result = new HashSet<string>();
-            foreach (var path in _paths) {
-                var str = path;
-                for (var i = 0; i < levels; i++) {
-                    var strUp = SystemPath.GetDirectoryName(str);
+            foreach (string path in Paths) {
+                string str = path;
+                for (int i = 0; i < levels; i++) {
+                    string strUp = SystemPath.GetDirectoryName(str);
                     if (strUp == null) break;
                     str = strUp;
                 }
@@ -1659,7 +1886,7 @@ namespace Fluent.IO {
         /// <param name="append">True if the text should be appended to the existing content. Default is false.</param>
         /// <returns>The set</returns>
         public Path Write(Func<Path, string> textFunction, Encoding encoding, bool append) {
-            foreach (var p in _paths) {
+            foreach (string p in Paths) {
                 EnsureDirectoryExists(p);
                 if (append) {
                     File.AppendAllText(p, textFunction(new Path(p, this)), encoding);
@@ -1684,7 +1911,7 @@ namespace Fluent.IO {
         /// <param name="byteFunction">A function that returns a byte array to write for each path.</param>
         /// <returns>The set</returns>
         public Path Write(Func<Path, byte[]> byteFunction) {
-            foreach (var p in _paths) {
+            foreach (string p in Paths) {
                 EnsureDirectoryExists(p);
                 File.WriteAllBytes(p, byteFunction(new Path(p, this)));
             }

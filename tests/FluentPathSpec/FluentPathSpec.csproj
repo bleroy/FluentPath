@@ -1,15 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
-
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
-
     <LangVersion>8.0</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Cornichon" Version="2.0.0" />
+    <PackageReference Include="Cornichon" Version="3.0.0" />
     <PackageReference Include="xunit" Version="2.4.1" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.4.1">
       <PrivateAssets>all</PrivateAssets>
@@ -18,9 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Fluent.IO.Path\Fluent.IO.Path.csproj" />
     <ProjectReference Include="..\..\src\Fluent.IO.Windows\Fluent.IO.Windows.csproj" />
-    <ProjectReference Include="..\..\src\Fluent.Zip\FluentZip.csproj" />
-    <ProjectReference Include="..\..\src\FluentPath\FluentPath.csproj" />
+    <ProjectReference Include="..\..\src\Fluent.IO.Zip\Fluent.IO.Zip.csproj" />
   </ItemGroup>
 
   <ItemGroup>

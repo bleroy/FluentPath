@@ -5,6 +5,7 @@
 using Cornichon;
 using Fluent.IO;
 using System;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace FluentPathSpec
@@ -20,8 +21,8 @@ namespace FluentPathSpec
         public void Dispose() => I.cleanup_test_files();
 
         [Fact]
-        public void SingleFileCopyToDirectory()
-            => Scenario
+        public async Task SingleFileCopyToDirectory()
+            => await Scenario
                 .Given(I.start_with_a_clean_directory)
                 .When(() => I.copy_from("foo.txt").to("sub"))
                 .Then(() => the.content_of_directory("sub").should_be("subsub", "baz.txt", "binary.bin", "foo.txt"))

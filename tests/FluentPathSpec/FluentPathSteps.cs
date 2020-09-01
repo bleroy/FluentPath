@@ -15,6 +15,7 @@ using Fluent.IO;
 using Fluent.IO.Windows;
 using Xunit;
 using Fluent.Zip;
+using System.Threading.Tasks;
 
 namespace FluentPathSpec
 {
@@ -231,10 +232,10 @@ namespace FluentPathSpec
                 _from = from;
             }
 
-            public void to(string to)
+            public async Task to(string to)
             {
                 Path src = _path.Combine(_from);
-                src.Copy(_path.CombineWithWindowsPath(to));
+                await src.Copy(_path.CombineWithWindowsPath(to));
             }
         }
 

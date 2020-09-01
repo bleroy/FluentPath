@@ -1,19 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <Description>Unit tests for FluentPath</Description>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>8.0</LangVersion>
     <IsPackable>false</IsPackable>
     <Company>Decent Consulting</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Copyright>Copyright © 2010-2019 Bertrand Le Roy</Copyright>
-    <Description>Unit tests for FluentPath</Description>
     <Version>2.0.0</Version>
-    <LangVersion>8.0</LangVersion>
   </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\FluentPath\FluentPath.csproj" />
-  </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Properties\" />
@@ -25,6 +22,10 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Fluent.IO.Path\Fluent.IO.Path.csproj" />
   </ItemGroup>
 
 </Project>

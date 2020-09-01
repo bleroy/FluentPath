@@ -118,9 +118,9 @@ namespace Fluent.Zip
         /// <returns>The zipped path.</returns>
         public static Path Zip(this Path target, Path path)
         {
-            Dictionary<Path, Path> files = path.AllFiles().ToDictionary(p => p.MakeRelativeTo(path));
+            var files = path.AllFiles().ToDictionary(p => p.MakeRelativeTo(path));
             ZipToStream(
-                new Path(files.Keys.Select(p => (string)p)),
+                new Path(files.Keys.Select(p => (string)p), target),
                 p => File.OpenRead((string)files[p]),
                 File.OpenWrite((string)target));
             return target;
@@ -135,7 +135,7 @@ namespace Fluent.Zip
         public static Path Zip(this Path target, IDictionary<Path, byte[]> contents)
         {
             ZipToStream(
-                new Path(contents.Keys.Select(p => (string)p)),
+                new Path(contents.Keys.Select(p => (string)p), target),
                 p => new MemoryStream(contents[p]),
                 File.OpenWrite((string)target));
             return target;

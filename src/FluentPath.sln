@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29411.138
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FluentPath", "FluentPath\FluentPath.csproj", "{563C59FD-4289-4D19-B31C-6971025D5CED}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Fluent.IO.Path", "Fluent.IO.Path\Fluent.IO.Path.csproj", "{563C59FD-4289-4D19-B31C-6971025D5CED}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Fluent.IO.Windows", "Fluent.IO.Windows\Fluent.IO.Windows.csproj", "{A625E670-091B-42A5-912D-C02A71CB5B9F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FluentZip", "Fluent.Zip\FluentZip.csproj", "{57F31829-D263-4682-991B-F224E7FB479B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Fluent.IO.Zip", "Fluent.IO.Zip\Fluent.IO.Zip.csproj", "{57F31829-D263-4682-991B-F224E7FB479B}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{7B279C38-9D17-46DC-8B4D-B705A6334729}"
 EndProject
