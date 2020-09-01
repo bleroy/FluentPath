@@ -440,22 +440,5 @@ namespace FluentPathTest {
             Assert.True(new Path("foo" + _sep + "bar") == path.Parent());
             Assert.True(new Path("foo" + _sep + "bar" + _sep) == path.Parent());
         }
-
-        private class DerivedPath : PathBase<DerivedPath> {
-            public DerivedPath() { }
-            public DerivedPath(string path) : base(path) {}
-
-            public bool DoStuff() {
-                return true;
-            }
-        }
-
-        [Fact]
-        public void DerivedPathWorks() {
-            var derivedPath = new DerivedPath("foo");
-
-            Assert.True(derivedPath.DoStuff());
-            Assert.True(derivedPath.Parent().DoStuff());
-        }
     }
 }
