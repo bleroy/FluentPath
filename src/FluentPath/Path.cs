@@ -279,6 +279,22 @@ namespace Fluent.IO {
         }
 
         /// <summary>
+        /// Combines a base path with a relative path.
+        /// </summary>
+        /// <param name="basePath">The base path.</param>
+        /// <param name="relativePath">A relative path.</param>
+        /// <returns>The combination of the base and relative paths.</returns>
+        public static Path operator /(Path basePath, Path relativePath) => basePath.Combine(relativePath);
+
+        /// <summary>
+        /// Combines a base path with a relative path.
+        /// </summary>
+        /// <param name="basePath">The base path.</param>
+        /// <param name="relativePath">A relative path.</param>
+        /// <returns>The combination of the base and relative paths.</returns>
+        public static Path operator /(Path path, string relativePath) => path.Combine(relativePath);
+
+        /// <summary>
         /// Combines each path in the set with the specified file or directory name.
         /// Does not do any physical change to the file system.
         /// </summary>
