@@ -60,5 +60,22 @@ namespace Fluent.IO {
         public static explicit operator string(Path path) => path.FirstPath();
 
         public static explicit operator Path(string path) => new Path(path);
+
+        /// Combines a base path with a relative path.
+        /// </summary>
+        /// <param name="basePath">The base path.</param>
+        /// <param name="relativePath">A relative path.</param>
+        /// <returns>The combination of the base and relative paths.</returns>
+        public static Path operator /(Path basePath, Path relativePath) => basePath.Combine(relativePath);
+
+        /// <summary>
+        /// Combines a base path with a relative path.
+        /// </summary>
+        /// <param name="basePath">The base path.</param>
+        /// <param name="relativePath">A relative path.</param>
+        /// <returns>The combination of the base and relative paths.</returns>
+        public static Path operator /(Path path, string relativePath) => path.Combine(relativePath);
+
+        /// <summary>
     }
 }
