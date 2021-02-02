@@ -274,6 +274,14 @@ namespace FluentPathTest {
         }
 
         [Fact]
+        public void CombinePathsWithSlashOperator()
+        {
+            var paths = new Path("foo", "bar");
+            var combined = paths / "baz" / new Path("truc");
+            Assert.True(new Path(@"foo\baz\truc", @"bar\baz\truc") == combined);
+        }
+
+        [Fact]
         public void CombineWithNoTokens() {
             var path = Path.FromTokens("foo");
             Assert.True(path == path.Combine());

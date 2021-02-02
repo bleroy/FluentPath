@@ -522,6 +522,21 @@ namespace Fluent.IO
                 : pathTokens.Length == 1 ? Combine(p => pathTokens[0])
                 : Chain.Chain(() => Chain.Paths
                     .Select(p => SystemPath.Combine(new string[] { p }.Concat(pathTokens).ToArray())));
+
+        /// Combines a base path with a relative path.
+        /// </summary>
+        /// <param name="basePath">The base path.</param>
+        /// <param name="relativePath">A relative path.</param>
+        /// <returns>The combination of the base and relative paths.</returns>
+        public static Path operator /(Path basePath, Path relativePath) => basePath.Combine(relativePath);
+
+        /// <summary>
+        /// Combines a base path with a relative path.
+        /// </summary>
+        /// <param name="basePath">The base path.</param>
+        /// <param name="relativePath">A relative path.</param>
+        /// <returns>The combination of the base and relative paths.</returns>
+        public static Path operator /(Path path, string relativePath) => path.Combine(relativePath);
         #endregion
 
         #region copy
