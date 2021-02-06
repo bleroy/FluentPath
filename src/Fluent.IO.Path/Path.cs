@@ -113,10 +113,10 @@ namespace Fluent.IO.Async
         #region equality, hash code and cast to/from string
         public static explicit operator string(Path path) => path.FirstPath().GetAwaiter().GetResult();
 
-        public static explicit operator Path(string path) => new Path(path);
+        public static explicit operator Path(string path) => new(path);
 
         public static bool operator ==(Path path1, Path path2)
-            => ReferenceEquals(path1, path2) ? true : path1.IsSameAs(path2).GetAwaiter().GetResult();
+            => ReferenceEquals(path1, path2) || path1.IsSameAs(path2).GetAwaiter().GetResult();
 
         public static bool operator !=(Path path1, Path path2) => !(path1 == path2);
 
@@ -188,14 +188,14 @@ namespace Fluent.IO.Async
         /// </summary>
         public static Path Current
         {
-            get => new Path(Directory.GetCurrentDirectory());
+            get => new(Directory.GetCurrentDirectory());
             set => Directory.SetCurrentDirectory(value.FirstPath().GetAwaiter().GetResult());
         }
 
         /// <summary>
         /// A path pointing to the root of the current directory.
         /// </summary>
-        public static Path Root => new Path(SystemPath.GetPathRoot(Directory.GetCurrentDirectory()));
+        public static Path Root => new(SystemPath.GetPathRoot(Directory.GetCurrentDirectory()));
 
         /// <summary>
         /// Creates a directory in the file system.
@@ -455,25 +455,28 @@ namespace Fluent.IO.Async
         /// <returns>The set</returns>
         public Path Copy(Func<Path, Path> pathMapping, Overwrite overwrite, bool recursive)
         {
-            return new Path(Paths.SelectMany(sourcePath => CopyImpl(sourcePath), CancellationToken), this);
+            return new Path(CopyImpl(Paths), this);
 
-            async IAsyncEnumerable<string> CopyImpl(string sourcePath)
+            async IAsyncEnumerable<string> CopyImpl(IAsyncEnumerable<string> paths)
             {
-                bool isSourceADirectory = Directory.Exists(sourcePath);
-                await foreach(string destPath in pathMapping(new Path(sourcePath, this)).Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                await foreach (string sourcePath in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
-                    if (isSourceADirectory)
+                    bool isSourceADirectory = Directory.Exists(sourcePath);
+                    await foreach (string destPath in pathMapping(new Path(sourcePath, this)).Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                     {
-                        await foreach(string filePath in CopyDirectory(sourcePath, destPath, overwrite, recursive).WithCancellation(CancellationToken).ConfigureAwait(false))
+                        if (isSourceADirectory)
                         {
-                            yield return filePath;
+                            await foreach (string filePath in CopyDirectory(sourcePath, destPath, overwrite, recursive).WithCancellation(CancellationToken).ConfigureAwait(false))
+                            {
+                                yield return filePath;
+                            }
                         }
-                    }
-                    else
-                    {
-                        yield return Directory.Exists(destPath) ?
-                            await CopyFile(sourcePath, SystemPath.Combine(destPath, SystemPath.GetFileName(sourcePath)), overwrite).ConfigureAwait(false):
-                            await CopyFile(sourcePath, destPath, overwrite).ConfigureAwait(false);
+                        else
+                        {
+                            yield return Directory.Exists(destPath) ?
+                                await CopyFile(sourcePath, SystemPath.Combine(destPath, SystemPath.GetFileName(sourcePath)), overwrite).ConfigureAwait(false) :
+                                await CopyFile(sourcePath, destPath, overwrite).ConfigureAwait(false);
+                        }
                     }
                 }
             }
@@ -511,7 +514,7 @@ namespace Fluent.IO.Async
                 }
                 if (recursive)
                 {
-                    foreach (string subdir in Directory.GetDirectories(source))
+                    foreach (string subdir in Directory.EnumerateDirectories(source))
                     {
                         if (subdir is null) continue;
                         await foreach (string filePath in CopyDirectory(subdir, SystemPath.Combine(destination, SystemPath.GetFileName(subdir)), overwrite, true).WithCancellation(CancellationToken).ConfigureAwait(false))
@@ -519,7 +522,7 @@ namespace Fluent.IO.Async
                             yield return filePath;
                         }
                     }
-                    foreach (string filePath in Directory.GetFiles(source))
+                    foreach (string filePath in Directory.EnumerateFiles(source))
                     {
                         if (filePath is null) continue;
                         yield return await CopyFile(filePath, SystemPath.Combine(destination, SystemPath.GetFileName(filePath)), overwrite);
@@ -551,16 +554,19 @@ namespace Fluent.IO.Async
         /// <returns>The set</returns>
         public Path CreateDirectories(Func<Path, Path> directoryNameGenerator)
         {
-            return new Path(Paths.SelectMany(CreateDirectoriesImpl, CancellationToken), this);
+            return new Path(CreateDirectoriesImpl(Paths), this);
 
-            async IAsyncEnumerable<string> CreateDirectoriesImpl(string dirPath)
+            async IAsyncEnumerable<string> CreateDirectoriesImpl(IAsyncEnumerable<string> paths)
             {
-                Path newDirectories = directoryNameGenerator(new Path(dirPath, this));
-                if (newDirectories is null) yield break;
-                await foreach(string pathString in newDirectories.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                await foreach (string dirPath in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
-                    Directory.CreateDirectory(pathString);
-                    yield return pathString;
+                    Path newDirectories = directoryNameGenerator(new Path(dirPath, this));
+                    if (newDirectories is null) yield break;
+                    await foreach (string pathString in newDirectories.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        Directory.CreateDirectory(pathString);
+                        yield return pathString;
+                    }
                 }
             }
         }
@@ -602,6 +608,7 @@ namespace Fluent.IO.Async
         }
         #endregion
 
+        #region create files
         /// <summary>
         /// Creates a file under the first path in the set.
         /// </summary>
@@ -635,22 +642,10 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="fileNameGenerator">A function that returns a file name for each path.</param>
         /// <param name="fileContentGenerator">A function that returns file content for each path.</param>
+        /// <param name="encoding">The encoding to use.</param>
         /// <returns>The set of created files.</returns>
-        public Path CreateFiles(Func<Path, Path> fileNameGenerator, Func<string, string> fileContentGenerator)
-        {
-            return new Path(Paths.SelectMany(CreateFilesImpl, CancellationToken), this);
-
-            async IAsyncEnumerable<string> CreateFilesImpl(string filePath)
-            {
-                Path p = fileNameGenerator(new Path(filePath, this));
-                await foreach(string newPath in p.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
-                {
-                    EnsureDirectoryExists(newPath);
-                    await File.WriteAllTextAsync(newPath, fileContentGenerator(newPath));
-                    yield return newPath;
-                }
-            }
-        }
+        public Path CreateFiles(Func<Path, Path> fileNameGenerator, Func<string, string> fileContentGenerator) =>
+            CreateFiles(fileNameGenerator, fileContentGenerator, Encoding.Default);
 
         /// <summary>
         /// Creates files under each of the paths in the set.
@@ -663,15 +658,23 @@ namespace Fluent.IO.Async
             Func<Path, Path> fileNameGenerator,
             Func<string, string> fileContentGenerator,
             Encoding encoding)
-            => Chain(
-                Paths
-                    .Select(path => new Path(path, this))
-                    .SelectMany(path => path.Combine(fileNameGenerator(path).FirstPath()).Paths),
-                async path =>
+        {
+            return new Path(CreateFilesImpl(Paths), this);
+
+            async IAsyncEnumerable<string> CreateFilesImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string filePath in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
-                    EnsureDirectoryExists(path);
-                    await File.WriteAllTextAsync(path, fileContentGenerator(path), encoding);
-                });
+                    Path p = fileNameGenerator(new Path(filePath, this));
+                    await foreach (string newPath in p.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        EnsureDirectoryExists(newPath);
+                        await File.WriteAllTextAsync(newPath, fileContentGenerator(newPath), encoding);
+                        yield return newPath;
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Creates files under each of the paths in the set.
@@ -682,16 +685,26 @@ namespace Fluent.IO.Async
         public Path CreateFiles(
             Func<Path, Path> fileNameGenerator,
             Func<string, byte[]> fileContentGenerator)
-            => Chain(
-                Paths
-                    .Select(path => new Path(path, this))
-                    .SelectMany(path => path.Combine(fileNameGenerator(path).FirstPath()).Paths),
-                async path =>
-                {
-                    EnsureDirectoryExists(path);
-                    await File.WriteAllBytesAsync(path, fileContentGenerator(path));
-                });
+        {
+            return new Path(CreateFilesImpl(Paths), this);
 
+            async IAsyncEnumerable<string> CreateFilesImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string filePath in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    Path p = fileNameGenerator(new Path(filePath, this));
+                    await foreach (string newPath in p.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        EnsureDirectoryExists(newPath);
+                        await File.WriteAllBytesAsync(newPath, fileContentGenerator(newPath));
+                        yield return newPath;
+                    }
+                }
+            }
+        }
+        #endregion
+
+        #region delete
         /// <summary>
         /// Deletes this path from the file system.
         /// </summary>
@@ -705,42 +718,47 @@ namespace Fluent.IO.Async
         /// <returns>The set of parent directories of all deleted file system entries.</returns>
         public Path Delete(bool recursive)
         {
-            var result = new HashSet<string>();
-            var fileTasks = new List<Task>();
-            var directoryTasks = new List<Task>();
-            foreach (string path in Paths) {
-                if (Directory.Exists(path)) {
-                    if (recursive) {
-                        foreach (string file in Directory.GetFiles(path, "*", SearchOption.AllDirectories)) {
-                            fileTasks.Add(Task.Run(() => File.Delete(file)));
-                        }
-                    }
-                    directoryTasks.Add(Task.Run(() => Directory.Delete(path, recursive)));
-                }
-                else {
-                    fileTasks.Add(Task.Run(() => File.Delete(path)));
-                }
-                result.Add(SystemPath.GetDirectoryName(path));
-            }
-            // Files can be deleted in parallel, directories should be sequential after files are done.
-            var task = Task.Run(async () =>
+            return new Path(DeleteImpl(Paths), this);
+
+            async IAsyncEnumerable<string> DeleteImpl(IAsyncEnumerable<string> paths)
             {
-                await Task.WhenAll(fileTasks);
-                foreach(Task directoryTask in directoryTasks)
+
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
-                    await directoryTask;
+                    if (Directory.Exists(path))
+                    {
+                        if (recursive)
+                        {
+                            foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+                            {
+                                await Task.Run(() => File.Delete(file)).ConfigureAwait(false);
+                            }
+                        }
+                        await Task.Run(() => Directory.Delete(path, recursive)).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await Task.Run(() => File.Delete(path)).ConfigureAwait(false);
+                    }
+                    yield return SystemPath.GetDirectoryName(path);
                 }
-            });
-            return Chain(task, result, this);
+            }
         }
+        #endregion
 
         /// <summary>
         /// Filters the set according to the predicate.
         /// </summary>
         /// <param name="predicate">A predicate that returns true for the entries that must be in the returned set.</param>
         /// <returns>The filtered set.</returns>
-        public Path Where(Predicate<Path> predicate)
-            => new Path(_task, Paths.Where(path => predicate(new Path(path, this))), this);
+        public Path Where(Predicate<Path> predicate) => new(Paths.Where(path => predicate(new Path(path, this))), this);
+
+        /// <summary>
+        /// Filters the set according to the predicate.
+        /// </summary>
+        /// <param name="predicate">A predicate that returns true for the entries that must be in the returned set.</param>
+        /// <returns>The filtered set.</returns>
+        public Path Where(Func<Path, ValueTask<bool>> predicate) => new(Paths.Where(path => predicate(new Path(path, this))), this);
 
         /// <summary>
         /// Filters the set 
@@ -749,10 +767,9 @@ namespace Fluent.IO.Async
         /// <returns></returns>
         public Path WhereExtensionIs(params string[] extensions) 
             => Where(
-                p => {
-                    string ext = p.Extension;
-                    return extensions.Contains(ext) ||
-                           (ext.Length > 0 && extensions.Contains(ext.Substring(1)));
+                async p => {
+                    string ext = await p.Extension();
+                    return extensions.Contains(ext) || (ext.Length > 0 && extensions.Contains(ext[1..]));
                 });
 
         /// <summary>
@@ -761,20 +778,43 @@ namespace Fluent.IO.Async
         /// <param name="action">An action that takes the path of each entry as its parameter.</param>
         /// <returns>The set</returns>
         public Path ForEach(Action<Path> action)
-            => Chain(Paths, p => action(new Path(p, this)));
+        {
+            return new Path(RunAction(Paths), this);
+
+            async IAsyncEnumerable<string> RunAction(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    action(new Path(path, this));
+                    yield return path;
+                }
+            }
+        }
 
         /// <summary>
-        /// Executes an action for each file or folder in the set, in parallel.
+        /// Executes an action for each file or folder in the set.
         /// </summary>
         /// <param name="action">An action that takes the path of each entry as its parameter.</param>
         /// <returns>The set</returns>
-        public Path ForEachParallel(Func<Path, Task> action)
-            => Chain(Task.WhenAll(Paths.Select(p => action(new Path(p, this)))), Paths, Previous);
+        public Path ForEach(Func<Path, ValueTask> action)
+        {
+            return new Path(RunAction(Paths), this);
 
+            async IAsyncEnumerable<string> RunAction(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    await action(new Path(path, this));
+                    yield return path;
+                }
+            }
+        }
+
+        #region directories
         /// <summary>
         /// Gets the subdirectories of folders in the set.
         /// </summary>
-        /// <returns>The set of matching subdirectories.</returns>
+        /// <returns>The set of subdirectories.</returns>
         public Path Directories() => Directories(p => true, "*", false);
 
         /// <summary>
@@ -783,8 +823,7 @@ namespace Fluent.IO.Async
         /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
         /// <param name="recursive">True if subdirectories should also be searched recursively. Default is false.</param>
         /// <returns>The set of matching subdirectories.</returns>
-        public Path Directories(string searchPattern, bool recursive) 
-            => Directories(p => true, searchPattern, recursive);
+        public Path Directories(string searchPattern, bool recursive) => Directories(p => true, searchPattern, recursive);
 
         /// <summary>
         /// Creates a set from all the subdirectories that satisfy the specified predicate.
@@ -799,8 +838,7 @@ namespace Fluent.IO.Async
         /// <param name="predicate">A function that returns true if the directory should be included.</param>
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of directories that satisfy the predicate.</returns>
-        public Path Directories(Predicate<Path> predicate, bool recursive) 
-            => Directories(predicate, "*", recursive);
+        public Path Directories(Predicate<Path> predicate, bool recursive) => Directories(predicate, "*", recursive);
 
         /// <summary>
         /// Creates a set from all the subdirectories that satisfy the specified predicate.
@@ -810,13 +848,67 @@ namespace Fluent.IO.Async
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of directories that satisfy the predicate.</returns>
         public Path Directories(Predicate<Path> predicate, string searchPattern, bool recursive)
-            => new Path(
-                _task,
-                Paths
-                    .Select(p => Directory.GetDirectories(p, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
-                    .SelectMany(dirs => dirs.Where(dir => predicate(new Path(dir, this)))),
-                this);
+        {
+            return new Path(EnumerateDirectories(Paths), this);
 
+            async IAsyncEnumerable<string> EnumerateDirectories(IAsyncEnumerable<string> paths)
+            {
+                await foreach(string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    foreach (string subDirectory in Directory.EnumerateDirectories(path, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
+                    {
+                        if (predicate(new Path(subDirectory, this)))
+                        {
+                            yield return subDirectory;
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates a set from all the subdirectories that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the directory should be included.</param>
+        /// <returns>The set of directories that satisfy the predicate.</returns>
+        public Path Directories(Func<Path, ValueTask<bool>> predicate) => Directories(predicate, "*", false);
+
+        /// <summary>
+        /// Creates a set from all the subdirectories that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the directory should be included.</param>
+        /// <param name="recursive">True if subdirectories should be recursively included.</param>
+        /// <returns>The set of directories that satisfy the predicate.</returns>
+        public Path Directories(Func<Path, ValueTask<bool>> predicate, bool recursive) => Directories(predicate, "*", recursive);
+
+        /// <summary>
+        /// Creates a set from all the subdirectories that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the directory should be included.</param>
+        /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
+        /// <param name="recursive">True if subdirectories should be recursively included.</param>
+        /// <returns>The set of directories that satisfy the predicate.</returns>
+        public Path Directories(Func<Path, ValueTask<bool>> predicate, string searchPattern, bool recursive)
+        {
+            return new Path(EnumerateDirectories(Paths), this);
+
+            async IAsyncEnumerable<string> EnumerateDirectories(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    foreach (string subDirectory in Directory.EnumerateDirectories(path, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
+                    {
+                        if (await predicate(new Path(subDirectory, this)))
+                        {
+                            yield return subDirectory;
+                        }
+                    }
+                }
+            }
+        }
+        #endregion
+
+        #region files
         /// <summary>
         /// Gets all the files under the directories of the set.
         /// </summary>
@@ -854,17 +946,66 @@ namespace Fluent.IO.Async
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of paths that satisfy the predicate.</returns>
         public Path Files(Predicate<Path> predicate, string searchPattern, bool recursive) {
-            var result = new HashSet<string>();
-            foreach (string file in Paths
-                .Select(p => Directory.GetFiles(p, searchPattern,
-                    recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
-                .SelectMany(files => files.Where(f => predicate(new Path(f, this))))) {
+            return new Path(EnumerateFiles(Paths), this);
 
-                result.Add(file);
+            async IAsyncEnumerable<string> EnumerateFiles(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    foreach (string file in Directory.EnumerateFiles(path, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
+                    {
+                        if (predicate(new Path(file, this)))
+                        {
+                            yield return file;
+                        }
+                    }
+                }
             }
-            return new Path(result, this);
         }
 
+        /// <summary>
+        /// Creates a set from all the files under the path that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the path should be included.</param>
+        /// <returns>The set of paths that satisfy the predicate.</returns>
+        public Path Files(Func<Path, ValueTask<bool>> predicate) => Files(predicate, "*", false);
+
+        /// <summary>
+        /// Creates a set from all the files under the path that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the path should be included.</param>
+        /// <param name="recursive">True if subdirectories should be recursively included.</param>
+        /// <returns>The set of paths that satisfy the predicate.</returns>
+        public Path Files(Func<Path, ValueTask<bool>> predicate, bool recursive) => Files(predicate, "*", recursive);
+
+        /// <summary>
+        /// Creates a set from all the files under the path that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the path should be included.</param>
+        /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
+        /// <param name="recursive">True if subdirectories should be recursively included.</param>
+        /// <returns>The set of paths that satisfy the predicate.</returns>
+        public Path Files(Func<Path, ValueTask<bool>> predicate, string searchPattern, bool recursive)
+        {
+            return new Path(EnumerateFiles(Paths), this);
+
+            async IAsyncEnumerable<string> EnumerateFiles(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    foreach (string file in Directory.EnumerateFiles(path, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
+                    {
+                        if (await predicate(new Path(file, this)))
+                        {
+                            yield return file;
+                        }
+                    }
+                }
+            }
+        }
+        #endregion
+
+        #region file system entries
         /// <summary>
         /// Gets all the files and subdirectories under the directories of the set.
         /// </summary>
@@ -904,28 +1045,77 @@ namespace Fluent.IO.Async
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
         public Path FileSystemEntries(Predicate<Path> predicate, string searchPattern, bool recursive) {
-            var result = new HashSet<string>();
             SearchOption searchOptions = recursive
                 ? SearchOption.AllDirectories
                 : SearchOption.TopDirectoryOnly;
-            foreach (string p in Paths) {
-                string[] directories = Directory.GetDirectories(p, searchPattern, searchOptions);
-                foreach (string entry in directories.Where(d => predicate(new Path(d, this)))) {
-                    result.Add(entry);
-                }
-                string[] files = Directory.GetFiles(p, searchPattern, searchOptions);
-                foreach (string entry in files.Where(f => predicate(new Path(f, this)))) {
-                    result.Add(entry);
+            return new Path(EnumerateFileSystemEntries(Paths), this);
+
+            async IAsyncEnumerable<string> EnumerateFileSystemEntries(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    foreach (string fileSystemEntry in Directory.EnumerateFileSystemEntries(path, searchPattern, searchOptions))
+                    {
+                        if (predicate(new Path(fileSystemEntry, this)))
+                        {
+                            yield return fileSystemEntry;
+                        }
+                    }
                 }
             }
-            return new Path(result, this);
         }
+
+        /// <summary>
+        /// Creates a set from all the files and subdirectories under the path that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the path should be included.</param>
+        /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
+        public Path FileSystemEntries(Func<Path, ValueTask<bool>> predicate) => FileSystemEntries(predicate, "*", false);
+
+        /// <summary>
+        /// Creates a set from all the files and subdirectories under the path that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the path should be included.</param>
+        /// <param name="recursive">True if subdirectories should be recursively included.</param>
+        /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
+        public Path FileSystemEntries(Func<Path, ValueTask<bool>> predicate, bool recursive)
+            => FileSystemEntries(predicate, "*", recursive);
+
+        /// <summary>
+        /// Creates a set from all the files and subdirectories under the path that satisfy the specified predicate.
+        /// </summary>
+        /// <param name="predicate">A function that returns true if the path should be included.</param>
+        /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
+        /// <param name="recursive">True if subdirectories should be recursively included.</param>
+        /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
+        public Path FileSystemEntries(Func<Path, ValueTask<bool>> predicate, string searchPattern, bool recursive)
+        {
+            SearchOption searchOptions = recursive
+                ? SearchOption.AllDirectories
+                : SearchOption.TopDirectoryOnly;
+            return new Path(EnumerateFileSystemEntries(Paths), this);
+
+            async IAsyncEnumerable<string> EnumerateFileSystemEntries(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    foreach (string fileSystemEntry in Directory.EnumerateFileSystemEntries(path, searchPattern, searchOptions))
+                    {
+                        if (await predicate(new Path(fileSystemEntry, this)))
+                        {
+                            yield return fileSystemEntry;
+                        }
+                    }
+                }
+            }
+        }
+        #endregion
 
         /// <summary>
         /// Gets the first path of the set.
         /// </summary>
         /// <returns>A new path from the first path of the set</returns>
-        public Path First() => new Path(Paths.Take(1), this);
+        public Path First() => new(Paths.Take(1), this);
 
         private async ValueTask<string> FirstPath()
         {
@@ -944,6 +1134,7 @@ namespace Fluent.IO.Async
             throw new InvalidOperationException("Can't get the first element of an empty collection.");
         }
 
+        #region grep
         /// <summary>
         /// Looks for a specific text pattern in each file in the set.
         /// </summary>
@@ -959,17 +1150,67 @@ namespace Fluent.IO.Async
         /// <param name="regularExpression">The pattern to look for</param>
         /// <param name="action">The action to execute for each match</param>
         /// <returns>The set</returns>
-        public Path Grep(Regex regularExpression, Action<Path, Match, string> action) {
-            foreach (string path in Paths.Where(p => !Directory.Exists(p))) {
-                string contents = File.ReadAllText(path);
-                MatchCollection matches = regularExpression.Matches(contents);
-                var p = new Path(path, this);
-                foreach (Match match in matches) {
-                    action(p, match, contents);
+        public Path Grep(Regex regularExpression, Action<Path, Match, string> action)
+        {
+            return new Path(GrepImpl(Paths), this);
+
+            async IAsyncEnumerable<string> GrepImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (!Directory.Exists(path))
+                    {
+                        string contents = await File.ReadAllTextAsync(path);
+                        MatchCollection matches = regularExpression.Matches(contents);
+                        var p = new Path(path, this);
+                        foreach (Match match in matches)
+                        {
+                            action(p, match, contents);
+                        }
+                    }
+                    yield return path;
                 }
             }
-            return this;
         }
+
+        /// <summary>
+        /// Looks for a specific text pattern in each file in the set.
+        /// </summary>
+        /// <param name="regularExpression">The pattern to look for</param>
+        /// <param name="action">The action to execute for each match</param>
+        /// <returns>The set</returns>
+        public Path Grep(string regularExpression, Func<Path, Match, string, ValueTask> action)
+            => Grep(new Regex(regularExpression, RegexOptions.Multiline), action);
+
+        /// <summary>
+        /// Looks for a specific text pattern in each file in the set.
+        /// </summary>
+        /// <param name="regularExpression">The pattern to look for</param>
+        /// <param name="action">The action to execute for each match</param>
+        /// <returns>The set</returns>
+        public Path Grep(Regex regularExpression, Func<Path, Match, string, ValueTask> action)
+        {
+            return new Path(GrepImpl(Paths), this);
+
+            async IAsyncEnumerable<string> GrepImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (!Directory.Exists(path))
+                    {
+                        string contents = await File.ReadAllTextAsync(path);
+                        MatchCollection matches = regularExpression.Matches(contents);
+                        var p = new Path(path, this);
+                        foreach (Match match in matches)
+                        {
+                            await action(p, match, contents);
+                        }
+                    }
+                    yield return path;
+                }
+            }
+        }
+        #endregion
 
         /// <summary>
         /// Makes this path the current path for the application.
@@ -1007,22 +1248,29 @@ namespace Fluent.IO.Async
         /// <returns>The set of relative paths.</returns>
         public Path MakeRelativeTo(Func<Path, Path> parentGenerator)
         {
-            var result = new HashSet<string>();
-            foreach (string path in Paths) {
-                if (!SystemPath.IsPathRooted(path)) {
-                    throw new InvalidOperationException("Path must be rooted to be made relative.");
+            return new Path(MakeRelativeImpl(Paths), this);
+
+            async IAsyncEnumerable<string> MakeRelativeImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (!SystemPath.IsPathRooted(path))
+                    {
+                        throw new InvalidOperationException("Path must be rooted to be made relative.");
+                    }
+                    string fullPath = SystemPath.GetFullPath(path);
+                    string parentFull = await parentGenerator(new Path(path, this)).FullPath();
+                    if (parentFull[^1] != SystemPath.DirectorySeparatorChar)
+                    {
+                        parentFull += SystemPath.DirectorySeparatorChar;
+                    }
+                    if (!fullPath.StartsWith(parentFull))
+                    {
+                        throw new InvalidOperationException("Path must start with parent.");
+                    }
+                    yield return fullPath[parentFull.Length..];
                 }
-                string fullPath = SystemPath.GetFullPath(path);
-                string parentFull = parentGenerator(new Path(path, this)).FullPath;
-                if (parentFull[^1] != SystemPath.DirectorySeparatorChar) {
-                    parentFull += SystemPath.DirectorySeparatorChar;
-                }
-                if (!fullPath.StartsWith(parentFull)) {
-                    throw new InvalidOperationException("Path must start with parent.");
-                }
-                result.Add(fullPath.Substring(parentFull.Length));
             }
-            return new Path(result, this);
         }
 
         /// <summary>
@@ -1032,16 +1280,41 @@ namespace Fluent.IO.Async
         /// <returns>The mapped set.</returns>
         public Path Map(Func<Path, Path> pathMapping)
         {
-            var result = new HashSet<string>();
-            foreach (string mapped in
-                from path in Paths
-                select pathMapping(new Path(path))
-                into mappedPaths
-                from mapped in mappedPaths.Paths select mapped) {
+            return new Path(MapImpl(Paths), this);
 
-                result.Add(mapped);
+            async IAsyncEnumerable<string> MapImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    Path mapped = pathMapping(new Path(path, this));
+                    await foreach (string mappedPathString in mapped.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        yield return mappedPathString;
+                    }
+                }
             }
-            return new Path(result, this);
+        }
+
+        /// <summary>
+        /// Maps all the paths in the set to a new set of paths using the provided mapping function.
+        /// </summary>
+        /// <param name="pathMapping">A function that takes a path and returns a transformed path.</param>
+        /// <returns>The mapped set.</returns>
+        public Path Map(Func<Path, ValueTask<Path>> pathMapping)
+        {
+            return new Path(MapImpl(Paths), this);
+
+            async IAsyncEnumerable<string> MapImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    Path mapped = await pathMapping(new Path(path, this));
+                    await foreach (string mappedPathString in mapped.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        yield return mappedPathString;
+                    }
+                }
+            }
         }
 
         /// <summary>

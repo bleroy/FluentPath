@@ -114,6 +114,42 @@ namespace Fluent.Utils
         }
 
         /// <summary>
+        /// Filters an enumerable with a condition.
+        /// </summary>
+        /// <param name="source">The enumerable.</param>
+        /// <param name="condition">The condition to verify on each item.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The filtered enumerable.</returns>
+        public static async IAsyncEnumerable<T> Where<T>(
+            this IAsyncEnumerable<T> source,
+            Predicate<T> condition,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                if (condition(item)) yield return item;
+            }
+        }
+
+        /// <summary>
+        /// Filters an enumerable with a condition.
+        /// </summary>
+        /// <param name="source">The enumerable.</param>
+        /// <param name="condition">The condition to verify on each item.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The filtered enumerable.</returns>
+        public static async IAsyncEnumerable<T> Where<T>(
+            this IAsyncEnumerable<T> source,
+            Func<T, ValueTask<bool>> condition,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                if (await condition(item)) yield return item;
+            }
+        }
+
+        /// <summary>
         /// Returns the first item in the enumerable or the default value for the type.
         /// </summary>
         /// <param name="source">The enumerable.</param>
