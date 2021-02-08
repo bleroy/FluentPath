@@ -74,6 +74,24 @@ namespace Fluent.Utils
         }
 
         /// <summary>
+        /// Applies a transformation on each item in an enumerable.
+        /// </summary>
+        /// <param name="source">The enumerable.</param>
+        /// <param name="map">The mapping to apply on each item.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The mapped enumerable.</returns>
+        public static async IAsyncEnumerable<TDest> Select<TSource, TDest>(
+            this IAsyncEnumerable<TSource> source,
+            Func<TSource, ValueTask<TDest>> map,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (TSource item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                yield return await map(item);
+            }
+        }
+
+        /// <summary>
         /// Applies a transformation on each item in an enumerable and removes null entries.
         /// </summary>
         /// <param name="source">The enumerable.</param>
@@ -110,6 +128,44 @@ namespace Fluent.Utils
                 {
                     yield return inner;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Executes an action on each element in the enumerable, and returns the same enumerable.
+        /// </summary>
+        /// <param name="source">The enumerable.</param>
+        /// <param name="action">The Action to execute on each item.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The same enumerable.</returns>
+        public static async IAsyncEnumerable<TSource> ForEach<TSource>(
+            this IAsyncEnumerable<TSource> source,
+            Action<TSource> action,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (TSource item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                action(item);
+                yield return item;
+            }
+        }
+
+        /// <summary>
+        /// Executes an action on each element in the enumerable, and returns the same enumerable.
+        /// </summary>
+        /// <param name="source">The enumerable.</param>
+        /// <param name="action">The Action to execute on each item.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The same enumerable.</returns>
+        public static async IAsyncEnumerable<TSource> ForEach<TSource>(
+            this IAsyncEnumerable<TSource> source,
+            Func<TSource, ValueTask> action,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach (TSource item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                await action(item);
+                yield return item;
             }
         }
 
@@ -268,6 +324,28 @@ namespace Fluent.Utils
             finally
             {
                 if (enumerator != null) await enumerator.DisposeAsync();
+            }
+        }
+
+        /// <summary>
+        /// Concatenates two enumerables.
+        /// </summary>
+        /// <param name="source">The first enumerable.</param>
+        /// <param name="second">The second enumerable.</param>
+        /// <param name="cancellationToken">A cancellation token.</param>
+        /// <returns>The concatenation of the two enumerables.</returns>
+        public static async IAsyncEnumerable<T> Concat<T>(
+            this IAsyncEnumerable<T> source,
+            IAsyncEnumerable<T> second,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await foreach(T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                yield return item;
+            }
+            await foreach (T item in second.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                yield return item;
             }
         }
 

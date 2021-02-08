@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -27,7 +26,7 @@ namespace Fluent.IO.Async
         /// <param name="paths">The list of path strings.</param>
         public Path(params string[] paths)
         {
-            Paths = paths.ToAsyncEnumerable(CancellationToken);
+            Paths = Normalize(paths).ToAsyncEnumerable(CancellationToken);
             Previous = Empty;
         }
 
@@ -38,7 +37,7 @@ namespace Fluent.IO.Async
         public Path(string[] paths, CancellationToken cancellationToken = default)
         {
             CancellationToken = cancellationToken;
-            Paths = paths.ToAsyncEnumerable(CancellationToken);
+            Paths = Normalize(paths).ToAsyncEnumerable(CancellationToken);
             Previous = Empty;
         }
 
@@ -49,7 +48,7 @@ namespace Fluent.IO.Async
         public Path(string path, CancellationToken cancellationToken = default)
         {
             CancellationToken = cancellationToken;
-            Paths = new[] { path }.ToAsyncEnumerable(CancellationToken);
+            Paths = Normalize(new[] { path }).ToAsyncEnumerable(CancellationToken);
             Previous = Empty;
         }
 
@@ -76,7 +75,7 @@ namespace Fluent.IO.Async
         private Path(IAsyncEnumerable<string> paths, Path previous)
         {
             CancellationToken = previous.CancellationToken;
-            Paths = Normalize(paths, CancellationToken);
+            Paths = paths;
             Previous = previous;
         }
 
@@ -96,18 +95,10 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="rawPaths">The paths to normalize</param>
         /// <returns>The normalized paths</returns>
-        private static async IAsyncEnumerable<string> Normalize(
-            IAsyncEnumerable<string> rawPaths,
-            [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            await foreach (string s in rawPaths.WithCancellation(cancellationToken).ConfigureAwait(false))
-            {
-                if (!string.IsNullOrWhiteSpace(s))
-                {
-                    yield return s[^1] == SystemPath.DirectorySeparatorChar && SystemPath.GetPathRoot(s) != s ? s[0..^1] : s;
-                }
-            }
-        }
+        private static IEnumerable<string> Normalize(IEnumerable<string> rawPaths) => rawPaths
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s[^1] == SystemPath.DirectorySeparatorChar && SystemPath.GetPathRoot(s) != s ? s[0..^1] : s)
+            .Distinct();
         #endregion
 
         #region equality, hash code and cast to/from string
@@ -347,7 +338,7 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="relativePath">The path to combine. Only the first path is used.</param>
         /// <returns>The combined paths.</returns>
-        public Path Combine(Path relativePath) => Combine(relativePath.Tokens);
+        public Path Combine(Path relativePath) => Combine(relativePath.Tokens());
 
         /// <summary>
         /// Combines each path in the set with the specified tokens.
@@ -777,38 +768,16 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="action">An action that takes the path of each entry as its parameter.</param>
         /// <returns>The set</returns>
-        public Path ForEach(Action<Path> action)
-        {
-            return new Path(RunAction(Paths), this);
-
-            async IAsyncEnumerable<string> RunAction(IAsyncEnumerable<string> paths)
-            {
-                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
-                {
-                    action(new Path(path, this));
-                    yield return path;
-                }
-            }
-        }
+        public Path ForEach(Action<Path> action) =>
+            new(Paths.ForEach(p => action(new Path(p, this)), CancellationToken), this);
 
         /// <summary>
         /// Executes an action for each file or folder in the set.
         /// </summary>
         /// <param name="action">An action that takes the path of each entry as its parameter.</param>
         /// <returns>The set</returns>
-        public Path ForEach(Func<Path, ValueTask> action)
-        {
-            return new Path(RunAction(Paths), this);
-
-            async IAsyncEnumerable<string> RunAction(IAsyncEnumerable<string> paths)
-            {
-                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
-                {
-                    await action(new Path(path, this));
-                    yield return path;
-                }
-            }
-        }
+        public Path ForEach(Func<Path, ValueTask> action) =>
+            new(Paths.ForEach(async p => await action(new Path(p, this)), CancellationToken), this);
 
         #region directories
         /// <summary>
@@ -1150,28 +1119,20 @@ namespace Fluent.IO.Async
         /// <param name="regularExpression">The pattern to look for</param>
         /// <param name="action">The action to execute for each match</param>
         /// <returns>The set</returns>
-        public Path Grep(Regex regularExpression, Action<Path, Match, string> action)
-        {
-            return new Path(GrepImpl(Paths), this);
-
-            async IAsyncEnumerable<string> GrepImpl(IAsyncEnumerable<string> paths)
+        public Path Grep(Regex regularExpression, Action<Path, Match, string> action) => 
+            new(Paths.ForEach(async path =>
             {
-                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                if (!Directory.Exists(path))
                 {
-                    if (!Directory.Exists(path))
+                    string contents = await File.ReadAllTextAsync(path);
+                    MatchCollection matches = regularExpression.Matches(contents);
+                    var p = new Path(path, this);
+                    foreach (Match match in matches)
                     {
-                        string contents = await File.ReadAllTextAsync(path);
-                        MatchCollection matches = regularExpression.Matches(contents);
-                        var p = new Path(path, this);
-                        foreach (Match match in matches)
-                        {
-                            action(p, match, contents);
-                        }
+                        action(p, match, contents);
                     }
-                    yield return path;
                 }
-            }
-        }
+            }, CancellationToken), this);
 
         /// <summary>
         /// Looks for a specific text pattern in each file in the set.
@@ -1188,28 +1149,20 @@ namespace Fluent.IO.Async
         /// <param name="regularExpression">The pattern to look for</param>
         /// <param name="action">The action to execute for each match</param>
         /// <returns>The set</returns>
-        public Path Grep(Regex regularExpression, Func<Path, Match, string, ValueTask> action)
-        {
-            return new Path(GrepImpl(Paths), this);
-
-            async IAsyncEnumerable<string> GrepImpl(IAsyncEnumerable<string> paths)
+        public Path Grep(Regex regularExpression, Func<Path, Match, string, ValueTask> action) =>
+            new(Paths.ForEach(async path =>
             {
-                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                if (!Directory.Exists(path))
                 {
-                    if (!Directory.Exists(path))
+                    string contents = await File.ReadAllTextAsync(path);
+                    MatchCollection matches = regularExpression.Matches(contents);
+                    var p = new Path(path, this);
+                    foreach (Match match in matches)
                     {
-                        string contents = await File.ReadAllTextAsync(path);
-                        MatchCollection matches = regularExpression.Matches(contents);
-                        var p = new Path(path, this);
-                        foreach (Match match in matches)
-                        {
-                            await action(p, match, contents);
-                        }
+                        await action(p, match, contents);
                     }
-                    yield return path;
                 }
-            }
-        }
+            }, CancellationToken), this);
         #endregion
 
         /// <summary>
@@ -1317,6 +1270,7 @@ namespace Fluent.IO.Async
             }
         }
 
+        #region move
         /// <summary>
         /// Moves the current path in the file system.
         /// Existing files are never overwritten.
@@ -1349,25 +1303,31 @@ namespace Fluent.IO.Async
         /// <returns>The moved set.</returns>
         public Path Move(Func<Path, Path> pathMapping, Overwrite overwrite)
         {
-            var result = new HashSet<string>();
-            foreach (string path in Paths) {
-                if (path == null) continue;
-                var source = new Path(path, this);
-                Path dest = pathMapping(source);
-                foreach (string destPath in dest.Paths) {
-                    string d = destPath;
-                    if (Directory.Exists(path)) {
-                        MoveDirectory(path, d, overwrite);
+            return new Path(MoveImpl(Paths), this);
+
+            async IAsyncEnumerable<string> MoveImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (path == null) continue;
+                    Path dest = pathMapping(new Path(path, this));
+                    await foreach (string destPath in dest.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        string d = destPath;
+                        if (Directory.Exists(path))
+                        {
+                            MoveDirectory(path, d, overwrite);
+                        }
+                        else
+                        {
+                            d = Directory.Exists(d)
+                                ? SystemPath.Combine(d, SystemPath.GetFileName(path)) : d;
+                            MoveFile(path, d, overwrite);
+                        }
+                        yield return destPath;
                     }
-                    else {
-                        d = Directory.Exists(d)
-                            ? SystemPath.Combine(d, SystemPath.GetFileName(path)) : d;
-                        MoveFile(path, d, overwrite);
-                    }
-                    result.Add(d);
                 }
             }
-            return new Path(result, this);
         }
 
         private static bool MoveFile(string srcPath, string destPath, Overwrite overwrite)
@@ -1385,30 +1345,17 @@ namespace Fluent.IO.Async
             return true;
         }
 
-        private static void EnsureDirectoryExists(string destPath) {
-            string dir = SystemPath.GetDirectoryName(destPath);
-            if (dir == null) {
-                throw new InvalidOperationException($"Directory {destPath} not found.");
-            }
-            if (!Directory.Exists(dir)) {
-                Directory.CreateDirectory(dir);
-            }
-        }
-
-        private static bool MoveDirectory(
-            string source, string destination, Overwrite overwrite) {
+        private static bool MoveDirectory(string source, string destination, Overwrite overwrite) {
 
             bool everythingMoved = true;
-            if (!Directory.Exists(destination)) {
-                Directory.CreateDirectory(destination);
-            }
-            foreach (string subdirectory in Directory.GetDirectories(source)) {
+            EnsureDirectoryExists(destination);
+            foreach (string subdirectory in Directory.EnumerateDirectories(source)) {
                 if (subdirectory == null) continue;
                 everythingMoved &=
                     MoveDirectory(subdirectory,
                         SystemPath.Combine(destination, SystemPath.GetFileName(subdirectory)), overwrite);
             }
-            foreach (string file in Directory.GetFiles(source)) {
+            foreach (string file in Directory.EnumerateFiles(source)) {
                 if (file == null) continue;
                 everythingMoved &= MoveFile(file, SystemPath.Combine(destination, SystemPath.GetFileName(file)), overwrite);
             }
@@ -1417,7 +1364,20 @@ namespace Fluent.IO.Async
             }
             return everythingMoved;
         }
+        #endregion
 
+        private static void EnsureDirectoryExists(string destPath) {
+            string dir = SystemPath.GetDirectoryName(destPath);
+            if (dir == null) {
+                throw new InvalidOperationException($"Directory {destPath} not found.");
+            }
+            if (!Directory.Exists(dir) && dir is not null && SystemPath.GetPathRoot(dir) != dir) {
+                EnsureDirectoryExists(dir);
+                Directory.CreateDirectory(dir);
+            }
+        }
+
+        #region open
         /// <summary>
         /// Opens all the files in the set and hands them to the provided action.
         /// </summary>
@@ -1426,29 +1386,17 @@ namespace Fluent.IO.Async
         /// <param name="access">The FileAccess to use. Default is ReadWrite.</param>
         /// <param name="share">The FileShare to use. Default is None.</param>
         /// <returns>The set</returns>
-        public Path Open(Action<FileStream> action, FileMode mode, FileAccess access, FileShare share) {
-            foreach (string path in Paths) {
+        public Path Open(
+            Action<FileStream> action,
+            FileMode mode = FileMode.OpenOrCreate,
+            FileAccess access = FileAccess.ReadWrite,
+            FileShare share = FileShare.None) =>
+
+            new(Paths.ForEach(path =>
+            {
                 using FileStream stream = File.Open(path, mode, access, share);
                 action(stream);
-            }
-            return this;
-        }
-
-        /// <summary>
-        /// Opens all the files in the set and hands them to the provided action.
-        /// </summary>
-        /// <param name="action">The action to perform on the open streams.</param>
-        /// <returns>The set</returns>
-        public Path Open(Action<FileStream> action) 
-            => Open(action, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-
-        /// <summary>
-        /// Opens all the files in the set and hands them to the provided action.
-        /// </summary>
-        /// <param name="action">The action to perform on the open streams.</param>
-        /// <returns>The set</returns>
-        public Path Open(Action<FileStream, Path> action) 
-            => Open(action, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }, CancellationToken), this);
 
         /// <summary>
         /// Opens all the files in the set and hands them to the provided action.
@@ -1460,16 +1408,56 @@ namespace Fluent.IO.Async
         /// <returns>The set</returns>
         public Path Open(
             Action<FileStream, Path> action,
-            FileMode mode,
-            FileAccess access,
-            FileShare share) {
+            FileMode mode = FileMode.OpenOrCreate,
+            FileAccess access = FileAccess.ReadWrite,
+            FileShare share = FileShare.None) =>
 
-            foreach (string path in Paths) {
+            new(Paths.ForEach(path =>
+            {
                 using FileStream stream = File.Open(path, mode, access, share);
                 action(stream, new Path(path, this));
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Opens all the files in the set and hands them to the provided action.
+        /// </summary>
+        /// <param name="action">The action to perform on the open files.</param>
+        /// <param name="mode">The FileMode to use. Default is OpenOrCreate.</param>
+        /// <param name="access">The FileAccess to use. Default is ReadWrite.</param>
+        /// <param name="share">The FileShare to use. Default is None.</param>
+        /// <returns>The set</returns>
+        public Path Open(
+            Func<FileStream, ValueTask> action,
+            FileMode mode = FileMode.OpenOrCreate,
+            FileAccess access = FileAccess.ReadWrite,
+            FileShare share = FileShare.None) =>
+
+            new(Paths.ForEach(async path =>
+            {
+                using FileStream stream = File.Open(path, mode, access, share);
+                await action(stream);
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Opens all the files in the set and hands them to the provided action.
+        /// </summary>
+        /// <param name="action">The action to perform on the open streams.</param>
+        /// <param name="mode">The FileMode to use. Default is OpenOrCreate.</param>
+        /// <param name="access">The FileAccess to use. Default is ReadWrite.</param>
+        /// <param name="share">The FileShare to use. Default is None.</param>
+        /// <returns>The set</returns>
+        public Path Open(
+            Func<FileStream, Path, ValueTask> action,
+            FileMode mode = FileMode.OpenOrCreate,
+            FileAccess access = FileAccess.ReadWrite,
+            FileShare share = FileShare.None) =>
+
+            new(Paths.ForEach(async path =>
+            {
+                using FileStream stream = File.Open(path, mode, access, share);
+                await action(stream, new Path(path, this));
+            }, CancellationToken), this);
+        #endregion
 
         /// <summary>
         /// Returns the previous path collection. Use this to end a sequence of commands
@@ -1490,14 +1478,14 @@ namespace Fluent.IO.Async
         /// <returns>The previous path collection.</returns>
         public Path End() => Previous;
 
+        #region process
         /// <summary>
         /// Runs the provided process function on the content of the file
         /// for the current path and writes the result back to the file.
         /// </summary>
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
-        public Path Process(Func<string, string> processFunction) 
-            => Process((p, s) => processFunction(s));
+        public Path Process(Func<string, string> processFunction) => Process((p, s) => processFunction(s));
 
         /// <summary>
         /// Runs the provided process function on the content of the file
@@ -1505,14 +1493,21 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
-        public Path Process(Func<Path, string, string> processFunction) {
-            foreach (string path in Paths) {
-                if (Directory.Exists(path)) continue;
-                var p = new Path(path, this);
-                string read = File.ReadAllText(path);
-                File.WriteAllText(path, processFunction(p, read));
+        public Path Process(Func<Path, string, string> processFunction)
+        {
+            return new Path(ProcessImpl(Paths), this);
+
+            async IAsyncEnumerable<string> ProcessImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (Directory.Exists(path)) continue;
+                    var p = new Path(path, this);
+                    string read = await File.ReadAllTextAsync(path);
+                    await File.WriteAllTextAsync(path, processFunction(p, read));
+                    yield return path;
+                }
             }
-            return this;
         }
 
         /// <summary>
@@ -1521,8 +1516,7 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
-        public Path Process(Func<byte[], byte[]> processFunction) 
-            => Process((p, s) => processFunction(s));
+        public Path Process(Func<byte[], byte[]> processFunction) => Process((p, s) => processFunction(s));
 
         /// <summary>
         /// Runs the provided process function on the content of the file
@@ -1531,42 +1525,115 @@ namespace Fluent.IO.Async
         /// <param name="processFunction">The processing function.</param>
         /// <returns>The set.</returns>
         public Path Process(Func<Path, byte[], byte[]> processFunction) {
-            foreach (string path in Paths) {
-                if (Directory.Exists(path)) continue;
-                var p = new Path(path, this);
-                byte[] read = File.ReadAllBytes(path);
-                File.WriteAllBytes(path, processFunction(p, read));
+            return new Path(ProcessImpl(Paths), this);
+
+            async IAsyncEnumerable<string> ProcessImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (Directory.Exists(path)) continue;
+                    var p = new Path(path, this);
+                    byte[] read = await File.ReadAllBytesAsync(path);
+                    await File.WriteAllBytesAsync(path, processFunction(p, read));
+                    yield return path;
+                }
             }
-            return this;
         }
 
         /// <summary>
-        /// Reads all text in files in the set.
+        /// Runs the provided process function on the content of the file
+        /// for the current path and writes the result back to the file.
         /// </summary>
-        /// <returns>The string as read from the files.</returns>
-        public string Read() 
-            => string.Join("",
-                (from p in Paths
-                    where !Directory.Exists(p)
-                    select File.ReadAllText(p)));
+        /// <param name="processFunction">The processing function.</param>
+        /// <returns>The set.</returns>
+        public Path Process(Func<string, ValueTask<string>> processFunction) => Process((p, s) => processFunction(s));
 
+        /// <summary>
+        /// Runs the provided process function on the content of the file
+        /// for the current path and writes the result back to the file.
+        /// </summary>
+        /// <param name="processFunction">The processing function.</param>
+        /// <returns>The set.</returns>
+        public Path Process(Func<Path, string, ValueTask<string>> processFunction)
+        {
+            return new Path(ProcessImpl(Paths), this);
+
+            async IAsyncEnumerable<string> ProcessImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (Directory.Exists(path)) continue;
+                    var p = new Path(path, this);
+                    string read = await File.ReadAllTextAsync(path);
+                    await File.WriteAllTextAsync(path, await processFunction(p, read));
+                    yield return path;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs the provided process function on the content of the file
+        /// for the current path and writes the result back to the file.
+        /// </summary>
+        /// <param name="processFunction">The processing function.</param>
+        /// <returns>The set.</returns>
+        public Path Process(Func<byte[], ValueTask<byte[]>> processFunction) => Process((p, s) => processFunction(s));
+
+        /// <summary>
+        /// Runs the provided process function on the content of the file
+        /// for the current path and writes the result back to the file.
+        /// </summary>
+        /// <param name="processFunction">The processing function.</param>
+        /// <returns>The set.</returns>
+        public Path Process(Func<Path, byte[], ValueTask<byte[]>> processFunction)
+        {
+            return new Path(ProcessImpl(Paths), this);
+
+            async IAsyncEnumerable<string> ProcessImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (Directory.Exists(path)) continue;
+                    var p = new Path(path, this);
+                    byte[] read = await File.ReadAllBytesAsync(path);
+                    await File.WriteAllBytesAsync(path, await processFunction(p, read));
+                    yield return path;
+                }
+            }
+        }
+        #endregion
+
+        #region read
         /// <summary>
         /// Reads all text in files in the set.
         /// </summary>
-        /// <param name="encoding">The encoding to use when reading the file.</param>
         /// <returns>The string as read from the files.</returns>
-        public string Read(Encoding encoding) 
-            => string.Join("",
-                (from p in Paths
-                    where !Directory.Exists(p)
-                    select File.ReadAllText(p, encoding)));
+        public async ValueTask<string> Read(Encoding? encoding = default) =>
+            // This is a little silly, but it's better to be consistent with other 
+            await Task.FromResult(string.Join("", Paths
+                .Where(p => !Directory.Exists(p))
+                .Select(async p => await File.ReadAllTextAsync(p, encoding ?? Encoding.Default))
+                .ToEnumerable(CancellationToken)));
 
         /// <summary>
         /// Reads all text in files in the set and hands the results to the provided action.
         /// </summary>
         /// <param name="action">An action that takes the content of the file.</param>
+        /// <param name="encoding">The encoding to use when reading the file.</param>
         /// <returns>The set</returns>
-        public Path Read(Action<string> action) => Read((s, p) => action(s));
+        public Path Read(Action<string> action, Encoding? encoding = default) => Read((s, p) => action(s), encoding);
+
+        /// <summary>
+        /// Reads all text in files in the set and hands the results to the provided action.
+        /// </summary>
+        /// <param name="action">An action that takes the content of the file and its path.</param>
+        /// <param name="encoding">The encoding to use when reading the file.</param>
+        /// <returns>The set</returns>
+        public Path Read(Action<string, Path> action, Encoding? encoding = default) =>
+            new(Paths.ForEach(path =>
+            {
+                action(File.ReadAllText(path, encoding ?? Encoding.Default), new Path(path, this));
+            }, CancellationToken), this);
 
         /// <summary>
         /// Reads all text in files in the set and hands the results to the provided action.
@@ -1574,20 +1641,7 @@ namespace Fluent.IO.Async
         /// <param name="action">An action that takes the content of the file.</param>
         /// <param name="encoding">The encoding to use when reading the file.</param>
         /// <returns>The set</returns>
-        public Path Read(Action<string> action, Encoding encoding) 
-            => Read((s, p) => action(s), encoding);
-
-        /// <summary>
-        /// Reads all text in files in the set and hands the results to the provided action.
-        /// </summary>
-        /// <param name="action">An action that takes the content of the file and its path.</param>
-        /// <returns>The set</returns>
-        public Path Read(Action<string, Path> action) {
-            foreach (string path in Paths) {
-                action(File.ReadAllText(path), new Path(path, this));
-            }
-            return this;
-        }
+        public Path Read(Func<string, ValueTask> action, Encoding? encoding = default) => Read(async (s, p) => await action(s), encoding);
 
         /// <summary>
         /// Reads all text in files in the set and hands the results to the provided action.
@@ -1595,26 +1649,33 @@ namespace Fluent.IO.Async
         /// <param name="action">An action that takes the content of the file and its path.</param>
         /// <param name="encoding">The encoding to use when reading the file.</param>
         /// <returns>The set</returns>
-        public Path Read(Action<string, Path> action, Encoding encoding) {
-            foreach (string path in Paths) {
-                action(File.ReadAllText(path, encoding), new Path(path, this));
-            }
-            return this;
-        }
+        public Path Read(Func<string, Path, ValueTask> action, Encoding? encoding = default) =>
+            new(Paths.ForEach(async path =>
+            {
+                await action(File.ReadAllText(path, encoding ?? Encoding.Default), new Path(path, this));
+            }, CancellationToken), this);
 
         /// <summary>
         /// Reads all the bytes in the files in the set.
         /// </summary>
         /// <returns>The bytes from the files.</returns>
-        public byte[] ReadBytes() {
-            var bytes = (
-                from p in Paths
-                where !Directory.Exists(p)
-                select File.ReadAllBytes(p)
-                ).ToList();
-            if (!bytes.Any()) return new byte[] {};
-            if (bytes.Count() == 1) return bytes.First();
-            byte[] result = new byte[bytes.Aggregate(0, (i, b) => i + b.Length)];
+        public async ValueTask<byte[]> ReadBytes()
+        {
+            int count = 0;
+            int size = 0;
+            List<byte[]> bytes = new();
+            await foreach(byte[] bin in Paths
+                .Where(p => !Directory.Exists(p))
+                .Select(async p => await File.ReadAllBytesAsync(p))
+                .WithCancellation(CancellationToken).ConfigureAwait(false))
+            {
+                count++;
+                size += bin.Length;
+                bytes.Add(bin);
+            }
+            if (count == 0) return Array.Empty<byte>();
+            if (count == 1) return bytes.First();
+            byte[] result = new byte[size];
             int offset = 0;
             foreach (byte[] b in bytes) {
                 b.CopyTo(result, offset);
@@ -1635,37 +1696,35 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="action">An action that takes an array of bytes and a path.</param>
         /// <returns>The set</returns>
-        public Path ReadBytes(Action<byte[], Path> action) {
-            foreach (string path in Paths) {
+        public Path ReadBytes(Action<byte[], Path> action) =>
+            new(Paths.ForEach(path =>
+            {
                 action(File.ReadAllBytes(path), new Path(path, this));
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+        #endregion
 
         /// <summary>
         /// The tokens for the first path.
         /// </summary>
-        public string[] Tokens {
-            get {
-                var tokens = new List<string>();
-                string current = FirstPath();
-                while (!string.IsNullOrEmpty(current)) {
-                    tokens.Add(SystemPath.GetFileName(current));
-                    current = SystemPath.GetDirectoryName(current);
-                }
-                tokens.Reverse();
-                return tokens.ToArray();
+        public async ValueTask<string[]> Tokens() {
+            var tokens = new List<string>();
+            string current = await FirstPath();
+            while (!string.IsNullOrEmpty(current)) {
+                tokens.Add(SystemPath.GetFileName(current));
+                current = SystemPath.GetDirectoryName(current);
             }
+            tokens.Reverse();
+            return tokens.ToArray();
         }
 
-        public string[] ToStringArray() => Paths.ToArray();
+        public async ValueTask<string[]> ToStringArray() => await Task.FromResult(Paths.ToEnumerable(CancellationToken).ToArray());
 
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
-        public Path Add(params string[] paths) => new Path(paths.Union(Paths), this);
+        public Path Add(params string[] paths) => new(paths.Union(Paths.ToEnumerable()), this);
 
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
@@ -1673,7 +1732,7 @@ namespace Fluent.IO.Async
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
         public Path Add(params Path[] paths) 
-            => new Path(paths.SelectMany(p => p.Paths).Union(Paths), this);
+            => new(paths.SelectMany(p => p.Paths.ToEnumerable()).Union(Paths.ToEnumerable()), this);
 
         /// <summary>
         /// Gets all files under this path.
@@ -1685,27 +1744,25 @@ namespace Fluent.IO.Async
         /// The attributes for the file for the first path in the collection.
         /// </summary>
         /// <returns>The attributes</returns>
-        public FileAttributes Attributes() => File.GetAttributes(FirstPath());
+        public async ValueTask<FileAttributes> Attributes() => File.GetAttributes(await FirstPath());
 
         /// <summary>
         /// The attributes for the file for the first path in the collection.
         /// </summary>
         /// <param name="action">An action to perform on the attributes of each file.</param>
         /// <returns>The attributes</returns>
-        public Path Attributes(Action<FileAttributes> action) 
-            => Attributes((p, fa) => action(fa));
+        public Path Attributes(Action<FileAttributes> action) => Attributes((p, fa) => action(fa));
 
         /// <summary>
         /// The attributes for the file for the first path in the collection.
         /// </summary>
         /// <param name="action">An action to perform on the attributes of each file.</param>
         /// <returns>The attributes</returns>
-        public Path Attributes(Action<Path, FileAttributes> action) {
-            foreach (string path in Paths.Where(path => !Directory.Exists(path))) {
-                action(new Path(path, this), File.GetAttributes(path));
-            }
-            return this;
-        }
+        public Path Attributes(Action<Path, FileAttributes> action) =>
+            new(Paths
+                .Where(path => !Directory.Exists(path))
+                .ForEach(path => action(new Path(path, this), File.GetAttributes(path)), CancellationToken),
+                this);
 
         /// <summary>
         /// Sets attributes on all files in the set.
@@ -1719,19 +1776,15 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="attributeFunction">A function that gives the attributes to set for each path.</param>
         /// <returns>The set</returns>
-        public Path Attributes(Func<Path, FileAttributes> attributeFunction) {
-            foreach (string p in Paths) {
-                File.SetAttributes(p, attributeFunction(new Path(p, this)));
-            }
-            return this;
-        }
+        public Path Attributes(Func<Path, FileAttributes> attributeFunction) =>
+            new(Paths.ForEach(p => File.SetAttributes(p, attributeFunction(new Path(p, this))), CancellationToken), this);
 
         /// <summary>
         /// Gets the creation time of the first path in the set
         /// </summary>
         /// <returns>The creation time</returns>
         public DateTime CreationTime() {
-            string firstPath = FirstPath();
+            string firstPath = FirstPath().GetAwaiter();
             return Directory.Exists(firstPath)
                 ? Directory.GetCreationTime(firstPath)
                 : File.GetCreationTime(firstPath);
