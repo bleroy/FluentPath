@@ -135,12 +135,12 @@ namespace Fluent.IO.Async
         private async ValueTask<bool> IsSameAs(Path other)
         {
             var distinctValues = new HashSet<string>();
-            await foreach(string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+            await foreach (string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
             {
                 distinctValues.Add(path);
             }
             var otherDistinctValues = new HashSet<string>();
-            await foreach(string path in other.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+            await foreach (string path in other.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
             {
                 otherDistinctValues.Add(path);
             }
@@ -158,7 +158,7 @@ namespace Fluent.IO.Async
         {
             var distinctValues = new SortedSet<string>(Paths.ToEnumerable(CancellationToken));
             var hash = new HashCode();
-            foreach(string path in distinctValues)
+            foreach (string path in distinctValues)
             {
                 hash.Add(path);
             }
@@ -247,7 +247,7 @@ namespace Fluent.IO.Async
         /// </summary>
         public async IAsyncEnumerable<string> FullPaths()
         {
-            await foreach(string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+            await foreach (string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
             {
                 yield return SystemPath.GetFullPath(path);
             }
@@ -268,7 +268,7 @@ namespace Fluent.IO.Async
         /// True if all the files in the collection are encrypted on disc.
         /// </summary>
         public async ValueTask<bool> IsEncrypted() =>
-            await Paths.All(p => Directory.Exists(p) ||(File.GetAttributes(p) & FileAttributes.Encrypted) != 0).ConfigureAwait(false);
+            await Paths.All(p => Directory.Exists(p) || (File.GetAttributes(p) & FileAttributes.Encrypted) != 0).ConfigureAwait(false);
 
         /// <summary>
         /// True if all the paths in the collection are fully-qualified.
@@ -338,7 +338,7 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="relativePath">The path to combine. Only the first path is used.</param>
         /// <returns>The combined paths.</returns>
-        public Path Combine(Path relativePath) => Combine(relativePath.Tokens());
+        public Path Combine(Path relativePath) => Combine(relativePath.Tokens().GetAwaiter().GetResult());
 
         /// <summary>
         /// Combines each path in the set with the specified tokens.
@@ -421,7 +421,7 @@ namespace Fluent.IO.Async
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <param name="recursive">True if the copy should be deep and include subdirectories recursively. Default is false.</param>
         /// <returns>The destination path.</returns>
-        public Path Copy(string destination, Overwrite overwrite, bool recursive) 
+        public Path Copy(string destination, Overwrite overwrite, bool recursive)
             => Copy(p => new Path(destination, this), overwrite, recursive);
 
         /// <summary>
@@ -606,7 +606,7 @@ namespace Fluent.IO.Async
         /// <param name="fileName">The name of the file.</param>
         /// <param name="fileContent">The content of the file.</param>
         /// <returns>A set with the created file.</returns>
-        public Path CreateFile(string fileName, string fileContent) 
+        public Path CreateFile(string fileName, string fileContent)
             => First().CreateFiles(p => new Path(fileName, this), p => fileContent);
 
         /// <summary>
@@ -616,7 +616,7 @@ namespace Fluent.IO.Async
         /// <param name="fileContent">The content of the file.</param>
         /// <param name="encoding">The encoding to use.</param>
         /// <returns>A set with the created file.</returns>
-        public Path CreateFile(string fileName, string fileContent, Encoding encoding) 
+        public Path CreateFile(string fileName, string fileContent, Encoding encoding)
             => First().CreateFiles(p => new Path(fileName, this), p => fileContent, encoding);
 
         /// <summary>
@@ -625,7 +625,7 @@ namespace Fluent.IO.Async
         /// <param name="fileName">The name of the file.</param>
         /// <param name="fileContent">The content of the file.</param>
         /// <returns>A set with the created file.</returns>
-        public Path CreateFile(string fileName, byte[] fileContent) 
+        public Path CreateFile(string fileName, byte[] fileContent)
             => First().CreateFiles(p => new Path(fileName, this), p => fileContent);
 
         /// <summary>
@@ -756,7 +756,7 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="extensions"></param>
         /// <returns></returns>
-        public Path WhereExtensionIs(params string[] extensions) 
+        public Path WhereExtensionIs(params string[] extensions)
             => Where(
                 async p => {
                     string ext = await p.Extension();
@@ -822,7 +822,7 @@ namespace Fluent.IO.Async
 
             async IAsyncEnumerable<string> EnumerateDirectories(IAsyncEnumerable<string> paths)
             {
-                await foreach(string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                await foreach (string path in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
                     foreach (string subDirectory in Directory.EnumerateDirectories(path, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
                     {
@@ -987,7 +987,7 @@ namespace Fluent.IO.Async
         /// <param name="searchPattern">A search pattern such as "*.jpg". Default is "*".</param>
         /// <param name="recursive">If true, subdirectories are explored as well. Default is false.</param>
         /// <returns>The set of files and folders that match the pattern.</returns>
-        public Path FileSystemEntries(string searchPattern, bool recursive) 
+        public Path FileSystemEntries(string searchPattern, bool recursive)
             => FileSystemEntries(p => true, searchPattern, recursive);
 
         /// <summary>
@@ -1003,7 +1003,7 @@ namespace Fluent.IO.Async
         /// <param name="predicate">A function that returns true if the path should be included.</param>
         /// <param name="recursive">True if subdirectories should be recursively included.</param>
         /// <returns>The set of fils and subdirectories that satisfy the predicate.</returns>
-        public Path FileSystemEntries(Predicate<Path> predicate, bool recursive) 
+        public Path FileSystemEntries(Predicate<Path> predicate, bool recursive)
             => FileSystemEntries(predicate, "*", recursive);
 
         /// <summary>
@@ -1110,7 +1110,7 @@ namespace Fluent.IO.Async
         /// <param name="regularExpression">The pattern to look for</param>
         /// <param name="action">The action to execute for each match</param>
         /// <returns>The set</returns>
-        public Path Grep(string regularExpression, Action<Path, Match, string> action) 
+        public Path Grep(string regularExpression, Action<Path, Match, string> action)
             => Grep(new Regex(regularExpression, RegexOptions.Multiline), action);
 
         /// <summary>
@@ -1119,7 +1119,7 @@ namespace Fluent.IO.Async
         /// <param name="regularExpression">The pattern to look for</param>
         /// <param name="action">The action to execute for each match</param>
         /// <returns>The set</returns>
-        public Path Grep(Regex regularExpression, Action<Path, Match, string> action) => 
+        public Path Grep(Regex regularExpression, Action<Path, Match, string> action) =>
             new(Paths.ForEach(async path =>
             {
                 if (!Directory.Exists(path))
@@ -1285,7 +1285,7 @@ namespace Fluent.IO.Async
         /// <param name="destination">The destination path.</param>
         /// <param name="overwrite">Overwriting policy. Default is never.</param>
         /// <returns>The destination path.</returns>
-        public Path Move(string destination, Overwrite overwrite) 
+        public Path Move(string destination, Overwrite overwrite)
             => Move(p => new Path(destination, this), overwrite);
 
         /// <summary>
@@ -1664,7 +1664,7 @@ namespace Fluent.IO.Async
             int count = 0;
             int size = 0;
             List<byte[]> bytes = new();
-            await foreach(byte[] bin in Paths
+            await foreach (byte[] bin in Paths
                 .Where(p => !Directory.Exists(p))
                 .Select(async p => await File.ReadAllBytesAsync(p))
                 .WithCancellation(CancellationToken).ConfigureAwait(false))
@@ -1731,7 +1731,7 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
-        public Path Add(params Path[] paths) 
+        public Path Add(params Path[] paths)
             => new(paths.SelectMany(p => p.Paths.ToEnumerable()).Union(Paths.ToEnumerable()), this);
 
         /// <summary>
@@ -1783,8 +1783,8 @@ namespace Fluent.IO.Async
         /// Gets the creation time of the first path in the set
         /// </summary>
         /// <returns>The creation time</returns>
-        public DateTime CreationTime() {
-            string firstPath = FirstPath().GetAwaiter();
+        public async ValueTask<DateTime> CreationTime() {
+            string firstPath = await FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetCreationTime(firstPath)
                 : File.GetCreationTime(firstPath);
@@ -1802,25 +1802,45 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="creationTimeFunction">A function that returns the new creation time for each path.</param>
         /// <returns>The set</returns>
-        public Path CreationTime(Func<Path, DateTime> creationTimeFunction) {
-            foreach (string path in Paths) {
+        public Path CreationTime(Func<Path, DateTime> creationTimeFunction) =>
+            new(Paths.ForEach(path =>
+            {
                 DateTime t = creationTimeFunction(new Path(path, this));
-                if (Directory.Exists(path)) {
+                if (Directory.Exists(path))
+                {
                     Directory.SetCreationTime(path, t);
                 }
-                else {
+                else
+                {
                     File.SetCreationTime(path, t);
                 }
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Sets the creation time across the set.
+        /// </summary>
+        /// <param name="creationTimeFunction">A function that returns the new creation time for each path.</param>
+        /// <returns>The set</returns>
+        public Path CreationTime(Func<Path, ValueTask<DateTime>> creationTimeFunction) =>
+            new(Paths.ForEach(async path =>
+            {
+                DateTime t = await creationTimeFunction(new Path(path, this));
+                if (Directory.Exists(path))
+                {
+                    Directory.SetCreationTime(path, t);
+                }
+                else
+                {
+                    File.SetCreationTime(path, t);
+                }
+            }, CancellationToken), this);
 
         /// <summary>
         /// Gets the UTC creation time of the first path in the set
         /// </summary>
         /// <returns>The UTC creation time</returns>
-        public DateTime CreationTimeUtc() {
-            string firstPath = FirstPath();
+        public async ValueTask<DateTime> CreationTimeUtc() {
+            string firstPath = await FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetCreationTimeUtc(firstPath)
                 : File.GetCreationTimeUtc(firstPath);
@@ -1838,31 +1858,52 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="creationTimeFunctionUtc">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
-        public Path CreationTimeUtc(Func<Path, DateTime> creationTimeFunctionUtc) {
-            foreach (string path in Paths) {
+        public Path CreationTimeUtc(Func<Path, DateTime> creationTimeFunctionUtc) =>
+            new(Paths.ForEach(path =>
+            {
                 DateTime t = creationTimeFunctionUtc(new Path(path, this));
-                if (Directory.Exists(path)) {
+                if (Directory.Exists(path))
+                {
                     Directory.SetCreationTimeUtc(path, t);
                 }
-                else {
+                else
+                {
                     File.SetCreationTimeUtc(path, t);
                 }
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Sets the UTC creation time across the set.
+        /// </summary>
+        /// <param name="creationTimeFunctionUtc">A function that returns the new time for each path.</param>
+        /// <returns>The set</returns>
+        public Path CreationTimeUtc(Func<Path, ValueTask<DateTime>> creationTimeFunctionUtc) =>
+            new(Paths.ForEach(async path =>
+            {
+                DateTime t = await creationTimeFunctionUtc(new Path(path, this));
+                if (Directory.Exists(path))
+                {
+                    Directory.SetCreationTimeUtc(path, t);
+                }
+                else
+                {
+                    File.SetCreationTimeUtc(path, t);
+                }
+            }, CancellationToken), this);
 
         /// <summary>
         /// Tests the existence of the paths in the set.
         /// </summary>
         /// <returns>True if all paths exist</returns>
-        public bool Exists =>Paths.All(path => (Directory.Exists(path) || File.Exists(path)));
+        public async ValueTask<bool> Exists() => await Paths.All(path => (Directory.Exists(path) || File.Exists(path)));
 
+        #region dates and times
         /// <summary>
         /// Gets the last access time of the first path in the set
         /// </summary>
         /// <returns>The last access time</returns>
-        public DateTime LastAccessTime() {
-            string firstPath = FirstPath();
+        public async ValueTask<DateTime> LastAccessTime() {
+            string firstPath = await FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastAccessTime(firstPath)
                 : File.GetLastAccessTime(firstPath);
@@ -1880,8 +1921,9 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="lastAccessTimeFunction">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
-        public Path LastAccessTime(Func<Path, DateTime> lastAccessTimeFunction) {
-            foreach (string path in Paths) {
+        public Path LastAccessTime(Func<Path, DateTime> lastAccessTimeFunction) =>
+            new(Paths.ForEach(path =>
+            {
                 DateTime t = lastAccessTimeFunction(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastAccessTime(path, t);
@@ -1889,16 +1931,33 @@ namespace Fluent.IO.Async
                 else {
                     File.SetLastAccessTime(path, t);
                 }
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Sets the last access time across the set.
+        /// </summary>
+        /// <param name="lastAccessTimeFunction">A function that returns the new time for each path.</param>
+        /// <returns>The set</returns>
+        public Path LastAccessTime(Func<Path, ValueTask<DateTime>> lastAccessTimeFunction) =>
+            new(Paths.ForEach(async path =>
+            {
+                DateTime t = await lastAccessTimeFunction(new Path(path, this));
+                if (Directory.Exists(path))
+                {
+                    Directory.SetLastAccessTime(path, t);
+                }
+                else
+                {
+                    File.SetLastAccessTime(path, t);
+                }
+            }, CancellationToken), this);
 
         /// <summary>
         /// Gets the last access UTC time of the first path in the set
         /// </summary>
         /// <returns>The last access UTC time</returns>
-        public DateTime LastAccessTimeUtc() {
-            string firstPath = FirstPath();
+        public async ValueTask<DateTime> LastAccessTimeUtc() {
+            string firstPath = await FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastAccessTimeUtc(firstPath)
                 : File.GetLastAccessTimeUtc(firstPath);
@@ -1916,8 +1975,9 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="lastAccessTimeFunctionUtc">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
-        public Path LastAccessTimeUtc(Func<Path, DateTime> lastAccessTimeFunctionUtc) {
-            foreach (string path in Paths) {
+        public Path LastAccessTimeUtc(Func<Path, DateTime> lastAccessTimeFunctionUtc) =>
+            new(Paths.ForEach(path =>
+            {
                 DateTime t = lastAccessTimeFunctionUtc(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastAccessTimeUtc(path, t);
@@ -1925,16 +1985,33 @@ namespace Fluent.IO.Async
                 else {
                     File.SetLastAccessTimeUtc(path, t);
                 }
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Sets the UTC last access time across the set.
+        /// </summary>
+        /// <param name="lastAccessTimeFunctionUtc">A function that returns the new time for each path.</param>
+        /// <returns>The set</returns>
+        public Path LastAccessTimeUtc(Func<Path, ValueTask<DateTime>> lastAccessTimeFunctionUtc) =>
+            new(Paths.ForEach(async path =>
+            {
+                DateTime t = await lastAccessTimeFunctionUtc(new Path(path, this));
+                if (Directory.Exists(path))
+                {
+                    Directory.SetLastAccessTimeUtc(path, t);
+                }
+                else
+                {
+                    File.SetLastAccessTimeUtc(path, t);
+                }
+            }, CancellationToken), this);
 
         /// <summary>
         /// Gets the last write time of the first path in the set
         /// </summary>
         /// <returns>The last write time</returns>
-        public DateTime LastWriteTime() {
-            string firstPath = FirstPath();
+        public async ValueTask<DateTime> LastWriteTime() {
+            string firstPath = await FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastWriteTime(firstPath)
                 : File.GetLastWriteTime(firstPath);
@@ -1952,8 +2029,9 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="lastWriteTimeFunction">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
-        public Path LastWriteTime(Func<Path, DateTime> lastWriteTimeFunction) {
-            foreach (string path in Paths) {
+        public Path LastWriteTime(Func<Path, DateTime> lastWriteTimeFunction) =>
+            new(Paths.ForEach(path =>
+            {
                 DateTime t = lastWriteTimeFunction(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastWriteTime(path, t);
@@ -1961,16 +2039,33 @@ namespace Fluent.IO.Async
                 else {
                     File.SetLastWriteTime(path, t);
                 }
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Sets the last write time across the set.
+        /// </summary>
+        /// <param name="lastWriteTimeFunction">A function that returns the new time for each path.</param>
+        /// <returns>The set</returns>
+        public Path LastWriteTime(Func<Path, ValueTask<DateTime>> lastWriteTimeFunction) =>
+            new(Paths.ForEach(async path =>
+            {
+                DateTime t = await lastWriteTimeFunction(new Path(path, this));
+                if (Directory.Exists(path))
+                {
+                    Directory.SetLastWriteTime(path, t);
+                }
+                else
+                {
+                    File.SetLastWriteTime(path, t);
+                }
+            }, CancellationToken), this);
 
         /// <summary>
         /// Gets the last write UTC time of the first path in the set
         /// </summary>
         /// <returns>The last write UTC time</returns>
-        public DateTime LastWriteTimeUtc() {
-            string firstPath = FirstPath();
+        public async ValueTask<DateTime> LastWriteTimeUtc() {
+            string firstPath = await FirstPath();
             return Directory.Exists(firstPath)
                 ? Directory.GetLastWriteTimeUtc(firstPath)
                 : File.GetLastWriteTimeUtc(firstPath);
@@ -1988,8 +2083,9 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="lastWriteTimeFunctionUtc">A function that returns the new time for each path.</param>
         /// <returns>The set</returns>
-        public Path LastWriteTimeUtc(Func<Path, DateTime> lastWriteTimeFunctionUtc) {
-            foreach (string path in Paths) {
+        public Path LastWriteTimeUtc(Func<Path, DateTime> lastWriteTimeFunctionUtc) =>
+            new(Paths.ForEach(path =>
+            {
                 DateTime t = lastWriteTimeFunctionUtc(new Path(path, this));
                 if (Directory.Exists(path)) {
                     Directory.SetLastWriteTimeUtc(path, t);
@@ -1997,16 +2093,27 @@ namespace Fluent.IO.Async
                 else {
                     File.SetLastWriteTimeUtc(path, t);
                 }
-            }
-            return this;
-        }
+            }, CancellationToken), this);
 
         /// <summary>
-        /// Goes up the specified number of levels on each path in the set.
-        /// Never goes above the root of the drive.
+        /// Sets the UTC last write time across the set.
         /// </summary>
-        /// <returns>The new set</returns>
-        public Path Up() => Up(1);
+        /// <param name="lastWriteTimeFunctionUtc">A function that returns the new time for each path.</param>
+        /// <returns>The set</returns>
+        public Path LastWriteTimeUtc(Func<Path, ValueTask<DateTime>> lastWriteTimeFunctionUtc) =>
+            new(Paths.ForEach(async path =>
+            {
+                DateTime t = await lastWriteTimeFunctionUtc(new Path(path, this));
+                if (Directory.Exists(path))
+                {
+                    Directory.SetLastWriteTimeUtc(path, t);
+                }
+                else
+                {
+                    File.SetLastWriteTimeUtc(path, t);
+                }
+            }, CancellationToken), this);
+        #endregion
 
         /// <summary>
         /// Goes up the specified number of levels on each path in the set.
@@ -2014,20 +2121,26 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="levels">The number of levels to go up.</param>
         /// <returns>The new set</returns>
-        public Path Up(int levels) {
-            var result = new HashSet<string>();
-            foreach (string path in Paths) {
-                string str = path;
-                for (int i = 0; i < levels; i++) {
-                    string strUp = SystemPath.GetDirectoryName(str);
-                    if (strUp == null) break;
-                    str = strUp;
+        public Path Up(int levels = 1)
+        {
+            return new Path(UpImpl(Paths), this); 
+
+            async IAsyncEnumerable<string> UpImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach(string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    string str = path;
+                    for (int i = 0; i < levels; i++) {
+                        string strUp = SystemPath.GetDirectoryName(str);
+                        if (strUp == null) break;
+                        str = strUp;
+                    }
+                    yield return str;
                 }
-                result.Add(str);
             }
-            return new Path(result, this);
         }
 
+        #region write
         /// <summary>
         /// Writes to all files in the set using UTF8.
         /// </summary>
@@ -2075,18 +2188,38 @@ namespace Fluent.IO.Async
         /// <param name="encoding">The encoding to use.</param>
         /// <param name="append">True if the text should be appended to the existing content. Default is false.</param>
         /// <returns>The set</returns>
-        public Path Write(Func<Path, string> textFunction, Encoding encoding, bool append) {
-            foreach (string p in Paths) {
-                EnsureDirectoryExists(p);
+        public Path Write(Func<Path, string> textFunction, Encoding encoding, bool append) =>
+            new(Paths.ForEach(path =>
+            {
+                EnsureDirectoryExists(path);
                 if (append) {
-                    File.AppendAllText(p, textFunction(new Path(p, this)), encoding);
+                    File.AppendAllText(path, textFunction(new Path(path, this)), encoding);
                 }
                 else {
-                    File.WriteAllText(p, textFunction(new Path(p, this)), encoding);
+                    File.WriteAllText(path, textFunction(new Path(path, this)), encoding);
                 }
-            }
-            return this;
-        }
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Writes to all files in the set.
+        /// </summary>
+        /// <param name="textFunction">A function that returns the text to write for each path.</param>
+        /// <param name="encoding">The encoding to use.</param>
+        /// <param name="append">True if the text should be appended to the existing content. Default is false.</param>
+        /// <returns>The set</returns>
+        public Path Write(Func<Path, ValueTask<string>> textFunction, Encoding encoding, bool append) =>
+            new(Paths.ForEach(async path =>
+            {
+                EnsureDirectoryExists(path);
+                if (append)
+                {
+                    File.AppendAllText(path, await textFunction(new Path(path, this)), encoding);
+                }
+                else
+                {
+                    File.WriteAllText(path, await textFunction(new Path(path, this)), encoding);
+                }
+            }, CancellationToken), this);
 
         /// <summary>
         /// Writes to all files in the set.
@@ -2100,12 +2233,24 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="byteFunction">A function that returns a byte array to write for each path.</param>
         /// <returns>The set</returns>
-        public Path Write(Func<Path, byte[]> byteFunction) {
-            foreach (string p in Paths) {
-                EnsureDirectoryExists(p);
-                File.WriteAllBytes(p, byteFunction(new Path(p, this)));
-            }
-            return this;
-        }
+        public Path Write(Func<Path, byte[]> byteFunction) =>
+            new(Paths.ForEach(path =>
+            {
+                EnsureDirectoryExists(path);
+                File.WriteAllBytes(path, byteFunction(new Path(path, this)));
+            }, CancellationToken), this);
+
+        /// <summary>
+        /// Writes to all files in the set.
+        /// </summary>
+        /// <param name="byteFunction">A function that returns a byte array to write for each path.</param>
+        /// <returns>The set</returns>
+        public Path Write(Func<Path, ValueTask<byte[]>> byteFunction) =>
+            new(Paths.ForEach(async path =>
+            {
+                EnsureDirectoryExists(path);
+                File.WriteAllBytes(path, await byteFunction(new Path(path, this)));
+            }, CancellationToken), this);
+        #endregion
     }
 }
