@@ -6,7 +6,7 @@ using System;
 using System.Collections;
 using System.ComponentModel;
 using SystemIO = System.IO;
-using Fluent.IO;
+using Fluent.IO.Async;
 using Xunit;
 
 namespace FluentPathTest {

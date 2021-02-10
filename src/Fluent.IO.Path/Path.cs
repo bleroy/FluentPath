@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -26,7 +27,28 @@ namespace Fluent.IO.Async
         /// <param name="paths">The list of path strings.</param>
         public Path(params string[] paths)
         {
-            Paths = Normalize(paths).ToAsyncEnumerable(CancellationToken);
+            Paths = new SyncAsyncEnumerable<string>(Normalize(paths));
+            Previous = Empty;
+        }
+
+        /// <summary>
+        /// Creates a collection of paths from a list of paths.
+        /// </summary>
+        /// <param name="paths">The list of path strings.</param>
+        public Path(params Path[] paths)
+        {
+            Paths = paths.ToAsyncEnumerable().SelectMany(p => p.Paths);
+            Previous = Empty;
+        }
+
+        /// <summary>
+        /// Creates a collection of paths from a list of paths.
+        /// </summary>
+        /// <param name="paths">The list of path strings.</param>
+        public Path(Path[] paths, CancellationToken cancellationToken)
+        {
+            CancellationToken = cancellationToken;
+            Paths = paths.ToAsyncEnumerable(cancellationToken).SelectMany(p => p.Paths, cancellationToken);
             Previous = Empty;
         }
 
@@ -37,7 +59,7 @@ namespace Fluent.IO.Async
         public Path(string[] paths, CancellationToken cancellationToken = default)
         {
             CancellationToken = cancellationToken;
-            Paths = Normalize(paths).ToAsyncEnumerable(CancellationToken);
+            Paths = new SyncAsyncEnumerable<string>(Normalize(paths));
             Previous = Empty;
         }
 
@@ -48,7 +70,7 @@ namespace Fluent.IO.Async
         public Path(string path, CancellationToken cancellationToken = default)
         {
             CancellationToken = cancellationToken;
-            Paths = Normalize(new[] { path }).ToAsyncEnumerable(CancellationToken);
+            Paths = new SyncAsyncEnumerable<string>(Normalize(new[] { path }));
             Previous = Empty;
         }
 
@@ -65,7 +87,11 @@ namespace Fluent.IO.Async
         /// <param name="paths">The list of paths in the set.</param>
         /// <param name="previous">The previous set.</param>
         private Path(IEnumerable<string> paths, Path previous)
-            : this(paths.ToAsyncEnumerable(previous.CancellationToken), previous) { }
+        {
+            CancellationToken = previous.CancellationToken;
+            Paths = new SyncAsyncEnumerable<string>(Normalize(paths));
+            Previous = previous;
+        }
 
         /// <summary>
         /// Creates a collection of paths from a list of path strings and a previous list of paths.
@@ -91,7 +117,7 @@ namespace Fluent.IO.Async
             : new Path(SystemPath.Combine(pathTokens));
 
         /// <summary>
-        /// Normalizes a list of path strings.
+        /// Normalizes a list of path strings by removing trailing separators, removing duplicates and empty paths.
         /// </summary>
         /// <param name="rawPaths">The paths to normalize</param>
         /// <returns>The normalized paths</returns>
@@ -99,6 +125,25 @@ namespace Fluent.IO.Async
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Select(s => s[^1] == SystemPath.DirectorySeparatorChar && SystemPath.GetPathRoot(s) != s ? s[0..^1] : s)
             .Distinct();
+        #endregion
+
+        #region chain terminator
+        /// <summary>
+        /// An awaiter that triggers an enumeration of the path strings in the Path object,
+        /// causing a chain of evaluations back up the asynchronous chain that was built with
+        /// chained calls to Path methods.
+        /// </summary>
+        public TaskAwaiter<Path> GetAwaiter() => Task.Run(async () =>
+        {
+            // No need to await if the underlying list of paths is synchronous
+            if (Paths is not IEnumerable<string>)
+            {
+                await foreach (string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                }
+            }
+            return this;
+        }, CancellationToken).GetAwaiter();
         #endregion
 
         #region equality, hash code and cast to/from string
@@ -273,6 +318,11 @@ namespace Fluent.IO.Async
         /// <summary>
         /// True if all the paths in the collection are fully-qualified.
         /// </summary>
+        public async ValueTask<bool> IsFullyQualified() => await Paths.All(SystemPath.IsPathFullyQualified).ConfigureAwait(false);
+
+        /// <summary>
+        /// True if all the paths in the collection are rooted.
+        /// </summary>
         public async ValueTask<bool> IsRooted() => await Paths.All(SystemPath.IsPathRooted).ConfigureAwait(false);
 
         /// <summary>
@@ -328,8 +378,9 @@ namespace Fluent.IO.Async
         /// <param name="nameGenerator">A function that maps each path to a file or directory name.</param>
         /// <returns>The new set of combined paths</returns>
         public Path Combine(Func<Path, Path> nameGenerator) =>
-            new(Paths.SelectMany(p => nameGenerator(new Path(p, this)).Paths.Select(
-                name => SystemPath.Combine(p, name)
+            new(Paths.SelectMany(p =>
+                nameGenerator(new Path(p, this)).Paths.Select(relativePath =>
+                    SystemPath.Combine(p, relativePath)
             ), CancellationToken), this);
 
         /// <summary>
@@ -338,7 +389,7 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="relativePath">The path to combine. Only the first path is used.</param>
         /// <returns>The combined paths.</returns>
-        public Path Combine(Path relativePath) => Combine(relativePath.Tokens().GetAwaiter().GetResult());
+        public Path Combine(Path relativePath) => Combine(p => relativePath);
 
         /// <summary>
         /// Combines each path in the set with the specified tokens.
@@ -1476,7 +1527,11 @@ namespace Fluent.IO.Async
         /// </example>
         /// </summary>
         /// <returns>The previous path collection.</returns>
-        public Path End() => Previous;
+        public Path End()
+        {
+            // TODO: figure out a way to await this before returning previous, or another way to ensure current will be enumerated.
+            return Previous;
+        }
 
         #region process
         /// <summary>
@@ -1608,12 +1663,18 @@ namespace Fluent.IO.Async
         /// Reads all text in files in the set.
         /// </summary>
         /// <returns>The string as read from the files.</returns>
-        public async ValueTask<string> Read(Encoding? encoding = default) =>
-            // This is a little silly, but it's better to be consistent with other 
-            await Task.FromResult(string.Join("", Paths
-                .Where(p => !Directory.Exists(p))
-                .Select(async p => await File.ReadAllTextAsync(p, encoding ?? Encoding.Default))
-                .ToEnumerable(CancellationToken)));
+        public async ValueTask<string> Read(Encoding? encoding = default)
+        {
+            var sb = new StringBuilder();
+            await foreach(string p in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+            {
+                if (!Directory.Exists(p))
+                {
+                    sb.Append(await File.ReadAllTextAsync(p, encoding ?? Encoding.Default));
+                }
+            }
+            return sb.ToString();
+        }
 
         /// <summary>
         /// Reads all text in files in the set and hands the results to the provided action.
@@ -1717,7 +1778,15 @@ namespace Fluent.IO.Async
             return tokens.ToArray();
         }
 
-        public async ValueTask<string[]> ToStringArray() => await Task.FromResult(Paths.ToEnumerable(CancellationToken).ToArray());
+        public async ValueTask<string[]> ToStringArray()
+        {
+            var list = new List<string>();
+            await foreach(string p in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+            {
+                list.Add(p);
+            }
+            return list.ToArray();
+        }
 
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
@@ -2127,6 +2196,11 @@ namespace Fluent.IO.Async
 
             async IAsyncEnumerable<string> UpImpl(IAsyncEnumerable<string> paths)
             {
+                if (paths is null)
+                {
+                    throw new ArgumentNullException(nameof(paths));
+                }
+
                 await foreach(string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
                     string str = path;
