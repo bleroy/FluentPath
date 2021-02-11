@@ -18,6 +18,7 @@ using SystemPath = System.IO.Path;
 namespace Fluent.IO.Async
 {
     [TypeConverter(typeof(PathConverter))]
+    [AsyncMethodBuilder(typeof(TaskAwaiter<Path>))]
     public sealed class Path
     {
         #region constructors and factories
@@ -112,9 +113,10 @@ namespace Fluent.IO.Async
         /// <param name="pathTokens">The tokens for the path.</param>
         /// <returns>The path object.</returns>
         public static Path FromTokens(params string[] pathTokens)
-            => (pathTokens.Length == 0)
-            ? throw new ArgumentException("At least one token needs to be specified.", nameof(pathTokens))
-            : new Path(SystemPath.Combine(pathTokens));
+        {
+            if (pathTokens.Length == 0) throw new ArgumentException("At least one token needs to be specified.", nameof(pathTokens));
+            return new Path(SystemPath.Combine(pathTokens));
+        }
 
         /// <summary>
         /// Normalizes a list of path strings by removing trailing separators, removing duplicates and empty paths.
@@ -304,10 +306,22 @@ namespace Fluent.IO.Async
         public async ValueTask<bool> HasExtension() => await Paths.Any(SystemPath.HasExtension, CancellationToken).ConfigureAwait(false);
 
         /// <summary>
+        /// Tests the existence of the paths in the set.
+        /// </summary>
+        /// <returns>True if all paths exist</returns>
+        public async ValueTask<bool> Exists() => await Paths.All(path => (Directory.Exists(path) || File.Exists(path)));
+
+        /// <summary>
         /// True if each path in the set is the path of
         /// a directory in the file system.
         /// </summary>
         public async ValueTask<bool> IsDirectory() => await Paths.All(Directory.Exists, CancellationToken).ConfigureAwait(false);
+
+        /// <summary>
+        /// True if each path in the set is the path of
+        /// a file in the file system.
+        /// </summary>
+        public async ValueTask<bool> IsFile() => await Paths.All(File.Exists, CancellationToken).ConfigureAwait(false);
 
         /// <summary>
         /// True if all the files in the collection are encrypted on disc.
@@ -788,6 +802,7 @@ namespace Fluent.IO.Async
         }
         #endregion
 
+        #region where, foreach and other linq-like methods
         /// <summary>
         /// Filters the set according to the predicate.
         /// </summary>
@@ -829,6 +844,30 @@ namespace Fluent.IO.Async
         /// <returns>The set</returns>
         public Path ForEach(Func<Path, ValueTask> action) =>
             new(Paths.ForEach(async p => await action(new Path(p, this)), CancellationToken), this);
+
+        /// <summary>
+        /// Gets the first path of the set.
+        /// </summary>
+        /// <returns>A new path from the first path of the set</returns>
+        public Path First() => new(Paths.Take(1), this);
+
+        private async ValueTask<string> FirstPath()
+        {
+            var enumerator = Paths.GetAsyncEnumerator(CancellationToken);
+            try
+            {
+                if (await enumerator.MoveNextAsync())
+                {
+                    return enumerator.Current;
+                }
+            }
+            finally
+            {
+                if (enumerator != null) await enumerator.DisposeAsync();
+            }
+            throw new InvalidOperationException("Can't get the first element of an empty collection.");
+        }
+        #endregion
 
         #region directories
         /// <summary>
@@ -930,10 +969,16 @@ namespace Fluent.IO.Async
 
         #region files
         /// <summary>
+        /// Gets all files under this path and its subdirectories.
+        /// </summary>
+        /// <returns>The collection of file paths.</returns>
+        public Path AllFiles() => Files("*", true);
+
+        /// <summary>
         /// Gets all the files under the directories of the set.
         /// </summary>
         /// <returns>The set of files.</returns>
-        public Path Files() => Files(p => true, "*", false);
+        public Path Files() => Files("*", false);
 
         /// <summary>
         /// Gets all the files under the directories of the set that match the pattern, going recursively into subdirectories if recursive is set to true.
@@ -1131,29 +1176,6 @@ namespace Fluent.IO.Async
         }
         #endregion
 
-        /// <summary>
-        /// Gets the first path of the set.
-        /// </summary>
-        /// <returns>A new path from the first path of the set</returns>
-        public Path First() => new(Paths.Take(1), this);
-
-        private async ValueTask<string> FirstPath()
-        {
-            var enumerator = Paths.GetAsyncEnumerator(CancellationToken);
-            try
-            {
-                if (await enumerator.MoveNextAsync())
-                {
-                    return enumerator.Current;
-                }
-            }
-            finally
-            {
-                if (enumerator != null) await enumerator.DisposeAsync();
-            }
-            throw new InvalidOperationException("Can't get the first element of an empty collection.");
-        }
-
         #region grep
         /// <summary>
         /// Looks for a specific text pattern in each file in the set.
@@ -1216,6 +1238,7 @@ namespace Fluent.IO.Async
             }, CancellationToken), this);
         #endregion
 
+        #region make current or relative
         /// <summary>
         /// Makes this path the current path for the application.
         /// </summary>
@@ -1276,7 +1299,9 @@ namespace Fluent.IO.Async
                 }
             }
         }
+        #endregion
 
+        #region map
         /// <summary>
         /// Maps all the paths in the set to a new set of paths using the provided mapping function.
         /// </summary>
@@ -1320,6 +1345,7 @@ namespace Fluent.IO.Async
                 }
             }
         }
+        #endregion
 
         #region move
         /// <summary>
@@ -1417,6 +1443,7 @@ namespace Fluent.IO.Async
         }
         #endregion
 
+        #region ensure
         private static void EnsureDirectoryExists(string destPath) {
             string dir = SystemPath.GetDirectoryName(destPath);
             if (dir == null) {
@@ -1427,6 +1454,7 @@ namespace Fluent.IO.Async
                 Directory.CreateDirectory(dir);
             }
         }
+        #endregion
 
         #region open
         /// <summary>
@@ -1510,6 +1538,7 @@ namespace Fluent.IO.Async
             }, CancellationToken), this);
         #endregion
 
+        #region end and up
         /// <summary>
         /// Returns the previous path collection. Use this to end a sequence of commands
         /// on a path obtained from a previous path.
@@ -1532,6 +1561,38 @@ namespace Fluent.IO.Async
             // TODO: figure out a way to await this before returning previous, or another way to ensure current will be enumerated.
             return Previous;
         }
+
+        /// <summary>
+        /// Goes up the specified number of levels on each path in the set.
+        /// Never goes above the root of the drive.
+        /// </summary>
+        /// <param name="levels">The number of levels to go up.</param>
+        /// <returns>The new set</returns>
+        public Path Up(int levels = 1)
+        {
+            return new Path(UpImpl(Paths), this);
+
+            async IAsyncEnumerable<string> UpImpl(IAsyncEnumerable<string> paths)
+            {
+                if (paths is null)
+                {
+                    throw new ArgumentNullException(nameof(paths));
+                }
+
+                await foreach (string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    string str = path;
+                    for (int i = 0; i < levels; i++)
+                    {
+                        string strUp = SystemPath.GetDirectoryName(str);
+                        if (strUp == null) break;
+                        str = strUp;
+                    }
+                    yield return str;
+                }
+            }
+        }
+        #endregion
 
         #region process
         /// <summary>
@@ -1764,6 +1825,7 @@ namespace Fluent.IO.Async
             }, CancellationToken), this);
         #endregion
 
+        #region tokens and path strings
         /// <summary>
         /// The tokens for the first path.
         /// </summary>
@@ -1787,7 +1849,9 @@ namespace Fluent.IO.Async
             }
             return list.ToArray();
         }
+        #endregion
 
+        #region add
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
         /// </summary>
@@ -1802,13 +1866,9 @@ namespace Fluent.IO.Async
         /// <returns>The composite set.</returns>
         public Path Add(params Path[] paths)
             => new(paths.SelectMany(p => p.Paths.ToEnumerable()).Union(Paths.ToEnumerable()), this);
+        #endregion
 
-        /// <summary>
-        /// Gets all files under this path.
-        /// </summary>
-        /// <returns>The collection of file paths.</returns>
-        public Path AllFiles() => Files("*", true);
-
+        #region attributes and dates/times
         /// <summary>
         /// The attributes for the file for the first path in the collection.
         /// </summary>
@@ -1960,13 +2020,6 @@ namespace Fluent.IO.Async
                 }
             }, CancellationToken), this);
 
-        /// <summary>
-        /// Tests the existence of the paths in the set.
-        /// </summary>
-        /// <returns>True if all paths exist</returns>
-        public async ValueTask<bool> Exists() => await Paths.All(path => (Directory.Exists(path) || File.Exists(path)));
-
-        #region dates and times
         /// <summary>
         /// Gets the last access time of the first path in the set
         /// </summary>
@@ -2183,36 +2236,6 @@ namespace Fluent.IO.Async
                 }
             }, CancellationToken), this);
         #endregion
-
-        /// <summary>
-        /// Goes up the specified number of levels on each path in the set.
-        /// Never goes above the root of the drive.
-        /// </summary>
-        /// <param name="levels">The number of levels to go up.</param>
-        /// <returns>The new set</returns>
-        public Path Up(int levels = 1)
-        {
-            return new Path(UpImpl(Paths), this); 
-
-            async IAsyncEnumerable<string> UpImpl(IAsyncEnumerable<string> paths)
-            {
-                if (paths is null)
-                {
-                    throw new ArgumentNullException(nameof(paths));
-                }
-
-                await foreach(string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
-                {
-                    string str = path;
-                    for (int i = 0; i < levels; i++) {
-                        string strUp = SystemPath.GetDirectoryName(str);
-                        if (strUp == null) break;
-                        str = strUp;
-                    }
-                    yield return str;
-                }
-            }
-        }
 
         #region write
         /// <summary>

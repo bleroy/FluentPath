@@ -2,15 +2,17 @@
 // This code released under the terms of the 
 // MIT License http://opensource.org/licenses/MIT
 
+using Fluent.IO.Async;
 using System;
 using System.Collections;
 using System.ComponentModel;
-using SystemIO = System.IO;
-using Fluent.IO.Async;
 using Xunit;
+using SystemIO = System.IO;
 
-namespace FluentPathTest {
-    public class PathTests {
+namespace FluentPathTest
+{
+    public class PathTests
+    {
         private readonly string _temp = SystemIO.Path.DirectorySeparatorChar + "temp";
         private readonly Path _path = Path.Root.Combine("foo", "bar", "baz");
         private readonly string _root = SystemIO.Path.GetPathRoot(SystemIO.Directory.GetCurrentDirectory()) ?? ".";
@@ -18,49 +20,55 @@ namespace FluentPathTest {
         private readonly Path _baz = Path.Root.Combine("foo", "bar", "baz.txt");
 
         [Fact]
-        public void CanConvertPathFromString() {
-            TypeConverter converter = TypeDescriptor.GetConverter(typeof (Path));
+        public void CanConvertPathFromString()
+        {
+            TypeConverter converter = TypeDescriptor.GetConverter(typeof(Path));
             var path = (Path)converter.ConvertFromString(_temp);
             Assert.Equal(_temp, path.ToString());
         }
 
         [Fact]
-        public void CanConvertFromIntIsFalse() {
+        public void CanConvertFromIntIsFalse()
+        {
             TypeConverter converter = TypeDescriptor.GetConverter(typeof(Path));
             Assert.False(converter.CanConvertFrom(typeof(int)));
         }
 
         [Fact]
-        public void CanConvertFromStringIsTrue() {
+        public void CanConvertFromStringIsTrue()
+        {
             TypeConverter converter = TypeDescriptor.GetConverter(typeof(Path));
             Assert.True(converter.CanConvertFrom(typeof(string)));
         }
 
         [Fact]
-        public void ConvertFromIntThrows() {
+        public void ConvertFromIntThrows()
+        {
             TypeConverter converter = TypeDescriptor.GetConverter(typeof(Path));
             Assert.Throws<NotSupportedException>(() => converter.ConvertFrom(0));
         }
 
         [Fact]
-        public void CanCreatePathFromString() {
+        public void CanCreatePathFromString()
+        {
             var path = (Path)_temp;
             Assert.Equal(_temp, path.ToString());
         }
 
         [Fact]
-        public void CanCreatePathFromTokens() {
+        public void CanCreatePathFromTokens()
+        {
             var path = Path.FromTokens(Path.Root.ToString(), "foo", "bar", "baz");
             Assert.Equal(_path.ToString(), path.ToString());
         }
 
         [Fact]
-        public void CantCreatePathFromNoTokens() {
-            Assert.Throws<ArgumentException>(() => Path.FromTokens());
-        }
+        public async void CantCreatePathFromNoTokens() =>
+            await Assert.ThrowsAsync<ArgumentException>(async () => await Path.FromTokens());
 
         [Fact]
-        public void CanCreatePathFromListOfPaths() {
+        public void CanCreatePathFromListOfPaths()
+        {
             var p1 = new Path("foo", "bar", "baz");
             var p2 = new Path("truc", "bar", "bidule");
             var p3 = new Path("toto");
@@ -69,162 +77,167 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void CanExplicitlyCompareToString() {
+        public void CanExplicitlyCompareToString()
+        {
             var path = new Path(_temp);
             Assert.True((string)path == _temp);
         }
 
         [Fact]
-        public void HashCodesForDifferentPathsAreDifferent() {
+        public void HashCodesForDifferentPathsAreDifferent()
+        {
             var path1 = new Path("one");
             var path2 = new Path("two");
             Assert.NotEqual(path1.GetHashCode(), path2.GetHashCode());
         }
 
         [Fact]
-        public void HashCodesForSamePathsAreEqual() {
+        public void HashCodesForSamePathsAreEqual()
+        {
             var path1 = new Path("one");
             var path2 = new Path("one");
             Assert.Equal(path1.GetHashCode(), path2.GetHashCode());
         }
 
         [Fact]
-        public void GetEquivalentToNew() {
-            Assert.True(new Path("foo") == Path.FromTokens("foo"));
-        }
+        public void GetEquivalentToNew() => Assert.True(new Path("foo") == Path.FromTokens("foo"));
 
         [Fact]
-        public void MakeRelative() {
-            Assert.Equal("foo", Path.Current.Combine("foo").MakeRelative().ToString());
-        }
+        public void MakeRelative() => Assert.Equal("foo", Path.Current.Combine("foo").MakeRelative().ToString());
 
         [Fact]
-        public void MakeRelativeTo() {
-            Assert.Equal("foo",
+        public void MakeRelativeTo() =>
+            Assert.Equal(
+                "foo",
                 Path.Current.Combine("foo").MakeRelativeTo(Path.Current.ToString()).ToString());
-        }
 
         [Fact]
-        public void MakeRelativeToRooted() {
-            Assert.Equal(@"Core\Common\manifest.txt",
-                String.Join("\\",
-                    Path.Root.Combine("Projects", "MyProject", "src", "MyProject.Web", "Core", "Common", "manifest.txt")
+        public async void MakeRelativeToRooted() => 
+            Assert.Equal(
+                @"Core\Common\manifest.txt",
+                string.Join("\\",
+                    await Path.Root.Combine("Projects", "MyProject", "src", "MyProject.Web", "Core", "Common", "manifest.txt")
                         .MakeRelativeTo(Path.Root.Combine("Projects", "MyProject", "src", "MyProject.Web"))
-                        .Tokens));
-        }
+                        .Tokens()));
 
         [Fact]
-        public void MakeRelativeToRootedWithTrailingSeparator() {
-            Assert.Equal(@"Core\Common\manifest.txt",
-                String.Join("\\",
-                    new Path(string.Join(
+        public async void MakeRelativeToRootedWithTrailingSeparator() =>
+            Assert.Equal(
+                @"Core\Common\manifest.txt",
+                string.Join("\\",
+                    await new Path(string.Join(
                         System.IO.Path.DirectorySeparatorChar.ToString(),
-                        new[] {"", "Projects", "MyProject", "src", "MyProject.Web", "Core", "Common", "manifest.txt"}))
+                        new[] { "", "Projects", "MyProject", "src", "MyProject.Web", "Core", "Common", "manifest.txt" }))
                         .MakeRelativeTo(string.Join(
                             System.IO.Path.DirectorySeparatorChar.ToString(),
-                            new[] {"", "Projects", "MyProject", "src", "MyProject.Web", ""}))
-                        .Tokens));
-        }
+                            new[] { "", "Projects", "MyProject", "src", "MyProject.Web", "" }))
+                        .Tokens()));
 
         [Fact]
-        public void MakeRelativeWithRelativePathThrows() {
-            Assert.Throws<InvalidOperationException>(() => Path.FromTokens("foo").MakeRelative());
-        }
+        public async void MakeRelativeWithRelativePathThrows() =>
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await Path.FromTokens("foo").MakeRelative());
 
         [Fact]
-        public void MakeRelativeWithOtherPathThrows() {
-            Assert.Throws<InvalidOperationException>(() => Path.FromTokens(_sep + "foo")
-                          .MakeRelativeTo(_sep + "baz"));
-        }
+        public async void MakeRelativeWithOtherPathThrows() =>
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await Path.FromTokens(_sep + "foo").MakeRelativeTo(_sep + "baz"));
 
         [Fact]
-        public void NullPathThrows() {
-            Assert.Throws<ArgumentNullException>(() => Path.Empty);
-        }
+        public void NullPathThrows() => Assert.Throws<ArgumentNullException>(() => Path.Empty);
 
         [Fact]
-        public void EqualsTrueForPathsFromSameString() {
+        public void EqualsTrueForPathsFromSameString()
+        {
             Assert.True(new Path(_temp) == new Path(_temp));
             Assert.True(new Path(_temp).Equals(new Path(_temp)));
         }
 
         [Fact]
-        public void EqualsTrueForPathAndItsString() {
+        public void EqualsTrueForPathAndItsString() =>
             Assert.True(new Path(_temp).Equals(_temp));
-        }
 
         [Fact]
-        public void EqualsFalseForDifferentPaths() {
+        public void EqualsFalseForDifferentPaths() =>
             Assert.False(new Path(_temp).Equals(new Path("Program Files")));
-        }
 
         [Fact]
-        public void EqualsFalseForPathAndDifferentString() {
+        public void EqualsFalseForPathAndDifferentString() =>
             Assert.False(new Path(_temp).Equals("Program Files"));
+
+        [Fact]
+        public async void Tokens()
+        {
+            var path = new Path("foo").Combine("bar").Combine("baz");
+            Assert.Equal(await path.Tokens(), new[] { "foo", "bar", "baz" });
         }
 
         [Fact]
-        public void Tokens() {
-            Path path = new Path("foo").Combine("bar").Combine("baz");
-            Assert.Equal(path.Tokens, new [] {"foo", "bar", "baz"});
-        }
-
-        [Fact]
-        public void ToStringGivesBackTheString() {
+        public void ToStringGivesBackTheString()
+        {
             const string path = "foo";
             Assert.Equal(path, new Path(path).ToString());
         }
 
         [Fact]
-        public void ParentGoesUpOneDirectory() {
-            Path pathUp = _path.Parent();
+        public async void ParentGoesUpOneDirectory()
+        {
+            Path pathUp = await _path.Parent();
             Assert.Equal(_root + "foo" + _sep + "bar", pathUp.ToString());
         }
 
         [Fact]
-        public void ParentWithTrailingSeparator() {
+        public void ParentWithTrailingSeparator()
+        {
             Path pathUp = new Path(String.Join(
                 SystemIO.Path.DirectorySeparatorChar.ToString(),
-                new[] {"", "Projects", "MyProject", "src", "MyProject.Web", "Core", "Common", "manifest.txt", ""}))
+                new[] { "", "Projects", "MyProject", "src", "MyProject.Web", "Core", "Common", "manifest.txt", "" }))
                 .Parent();
             Assert.Equal(@"\Projects\MyProject\src\MyProject.Web\Core\Common", string.Join("\\", pathUp.Tokens));
         }
 
         [Fact]
-        public void ParentTwiceGoesUpTwoDirectories() {
+        public void ParentTwiceGoesUpTwoDirectories()
+        {
             Path pathUpUp = _path.Parent().Parent();
             Assert.Equal(_root + "foo", pathUpUp.ToString());
         }
 
         [Fact]
-        public void ParentThriceGoesUpThreeDirectory() {
+        public void ParentThriceGoesUpThreeDirectory()
+        {
             Path pathUp3 = _path.Parent().Parent().Parent();
             Assert.Equal(_root, pathUp3.ToString());
         }
 
         [Fact]
-        public void ParentMoreTimesThanDepthGoesUpLikeDepth() {
+        public void ParentMoreTimesThanDepthGoesUpLikeDepth()
+        {
             Path pathUp3 = _path.Parent().Parent().Parent();
             Assert.True(pathUp3 == pathUp3.Parent());
         }
 
         [Fact]
-        public void Up2() {
+        public void Up2()
+        {
             Assert.Equal(_root + "foo", _path.Up(2).ToString());
         }
 
         [Fact]
-        public void Up3() {
+        public void Up3()
+        {
             Assert.Equal(_root, _path.Up(3).ToString());
         }
 
         [Fact]
-        public void UpMoreThanDepthSameAsDepth() {
+        public void UpMoreThanDepthSameAsDepth()
+        {
             Assert.Equal(_root, _path.Up(4).ToString());
         }
 
         [Fact]
-        public void UpOnCollection() {
+        public void UpOnCollection()
+        {
             var collec = new Path((string)_path, (string)Path.Root, (string)_baz);
             Path upCollec = collec.Up();
             Assert.True(_path.Up().Add(Path.Root) == upCollec);
@@ -235,39 +248,45 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void ChangeExtensionChangesExtensionWithoutDot() {
+        public void ChangeExtensionChangesExtensionWithoutDot()
+        {
             Path path = new Path("temp").Combine("foo.bar");
             Assert.True(new Path("temp").Combine("foo.baz") == path.ChangeExtension("baz"));
         }
 
         [Fact]
-        public void ChangeExtensionChangesExtensionWithDot() {
+        public void ChangeExtensionChangesExtensionWithDot()
+        {
             Path path = new Path("temp").Combine("foo.bar");
             Assert.True(new Path("temp").Combine("foo.baz") == path.ChangeExtension(".baz"));
         }
 
         [Fact]
-        public void CombineWithFile() {
+        public void CombineWithFile()
+        {
             Assert.Equal(_sep + "temp" + _sep + "baz.exe",
                 new Path(_temp).Combine("baz.exe").ToString());
         }
 
         [Fact]
-        public void CombineWithComplexPath() {
+        public void CombineWithComplexPath()
+        {
             Path path = Path.Root.Combine("foo");
             Assert.Equal(_root + "foo" + _sep + "bar" + _sep + "baz.exe",
                 path.Combine("bar", "baz.exe").ToString());
         }
 
         [Fact]
-        public void CombineUsingLambda() {
+        public void CombineUsingLambda()
+        {
             var paths = new Path("foo", "bar", "baz");
             Path combined = paths.Combine(p => p.FileName);
             Assert.True(new Path(@"foo\foo", @"bar\bar", @"baz\baz") == combined);
         }
 
         [Fact]
-        public void CombineTwoPaths() {
+        public void CombineTwoPaths()
+        {
             var paths = new Path("foo", "bar");
             Path combined = paths.Combine(new Path("baz").Combine("truc"));
             Assert.True(new Path(@"foo\baz\truc", @"bar\baz\truc") == combined);
@@ -282,13 +301,15 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void CombineWithNoTokens() {
+        public void CombineWithNoTokens()
+        {
             var path = Path.FromTokens("foo");
             Assert.True(path == path.Combine());
         }
 
         [Fact]
-        public void CombineOncollection() {
+        public void CombineOncollection()
+        {
             var paths = new Path("foo", "bar", "baz");
             Path combined = paths.Combine("sub", "subsub");
             Assert.True(new Path(
@@ -298,76 +319,89 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void DirectoryName() {
+        public void DirectoryName()
+        {
             Assert.Equal(_root + "foo" + _sep + "bar", _baz.DirectoryName);
         }
 
         [Fact]
-        public void Extension() {
+        public void Extension()
+        {
             Assert.Equal(@".txt", _baz.Extension);
         }
 
         [Fact]
-        public void FileName() {
+        public void FileName()
+        {
             Assert.Equal(@"baz.txt", _baz.FileName);
         }
 
         [Fact]
-        public void FileNameWithoutExtension() {
+        public void FileNameWithoutExtension()
+        {
             Assert.Equal(@"baz", _baz.FileNameWithoutExtension);
         }
 
         [Fact]
-        public void FullPath() {
+        public void FullPath()
+        {
             var path = Path.FromTokens("foo", "bar", "baz.txt");
             Assert.Equal(_sep + "foo" + _sep + "bar" + _sep + "baz.txt",
                 ((string)path.FullPath).Substring(Path.Current.ToString().Length));
         }
 
         [Fact]
-        public void HasExtensionTrue() {
+        public void HasExtensionTrue()
+        {
             Assert.True(_baz.HasExtension);
         }
 
         [Fact]
-        public void HasExtensionFalse() {
+        public void HasExtensionFalse()
+        {
             Path path = Path.Root.Combine("foo", "bar", "baz");
             Assert.False(path.HasExtension);
         }
 
         [Fact]
-        public void IsRootedTrueForFullPath() {
+        public void IsRootedTrueForFullPath()
+        {
             Assert.True(_baz.IsRooted);
         }
 
         [Fact]
-        public void IsRootedFalseForAppRelative() {
+        public void IsRootedFalseForAppRelative()
+        {
             var path = Path.FromTokens("foo", "bar", "baz.txt");
             Assert.False(path.IsRooted);
         }
 
         [Fact]
-        public void PathRoot() {
+        public void PathRoot()
+        {
             Assert.Equal(_root, _baz.PathRoot);
         }
 
         [Fact]
-        public void PreviousPath() {
+        public void PreviousPath()
+        {
             var path = new Path("two", new Path("one"));
             Assert.Equal("one", path.Previous.ToString());
         }
 
         [Fact]
-        public void EndPath() {
+        public void EndPath()
+        {
             var path = new Path("two", new Path("one"));
             Assert.Equal("one", path.End().ToString());
             var previous = new Path("previous");
-            var collec = new Path(new[] {"current"}, previous);
+            var collec = new Path(new[] { "current" }, previous);
             Assert.True(previous == collec.End());
         }
 
         [Fact]
-        public void EnumeratePathsInCollection() {
+        public void EnumeratePathsInCollection()
+        {
             IEnumerator pathEnumerator = ((IEnumerable)new Path("foo", "bar")).GetEnumerator();
             Assert.True(pathEnumerator.MoveNext());
             if (pathEnumerator.Current != null) Assert.Equal("foo", pathEnumerator.Current.ToString());
@@ -377,7 +411,8 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void ChangeExtension() {
+        public void ChangeExtension()
+        {
             var paths = new Path(
                 "foo.txt", @"bar\foo.zip", @"bar\baz.zip", "foo.avi", "bar.txt");
             Path changed = paths.ChangeExtension(".txt");
@@ -386,12 +421,14 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void ToStringReturnsCommaSeparatedList() {
+        public void ToStringReturnsCommaSeparatedList()
+        {
             Assert.Equal("foo, bar, baz", new Path("foo", "bar", "baz").ToString());
         }
 
         [Fact]
-        public void FilterCollectionByExtension() {
+        public void FilterCollectionByExtension()
+        {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
             Path filtered = collec.WhereExtensionIs(".txt", "avi");
             Assert.True(new Path("foo.txt", "foo.avi") == filtered);
@@ -399,7 +436,8 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void UseForEachOnCollection() {
+        public void UseForEachOnCollection()
+        {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
             string result = "";
             collec.ForEach(p => result += p.ToString());
@@ -407,7 +445,8 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void MapMaps() {
+        public void MapMaps()
+        {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
             Path mapped = collec.Map(p => new Path(p.FileNameWithoutExtension));
             Assert.True(new Path("foo") == mapped);
@@ -417,13 +456,15 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void FirstPath() {
+        public void FirstPath()
+        {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
             Assert.True(new Path("foo.txt") == collec.First());
         }
 
         [Fact]
-        public void TrailingBackslashDoesntMatterForPathEquality() {
+        public void TrailingBackslashDoesntMatterForPathEquality()
+        {
             var path1 = new Path("foo" + _sep + "bar");
             var path2 = new Path("foo" + _sep + "bar" + _sep);
 
@@ -431,7 +472,8 @@ namespace FluentPathTest {
         }
 
         [Fact]
-        public void ParentPathIsCorrectAndTrailingSeparatorDoesntMatter() {
+        public void ParentPathIsCorrectAndTrailingSeparatorDoesntMatter()
+        {
             var path = new Path("foo" + _sep + "bar" + _sep + "baz.dll");
 
             Assert.True(new Path("foo" + _sep + "bar") == path.Parent());
