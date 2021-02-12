@@ -1,4 +1,4 @@
-﻿// Copyright © 2010-2021 Bertrand Le Roy. All Rights Reserved.
+﻿// Copyright © 2021 Bertrand Le Roy. All Rights Reserved.
 // This code released under the terms of the 
 // MIT License http://opensource.org/licenses/MIT
 

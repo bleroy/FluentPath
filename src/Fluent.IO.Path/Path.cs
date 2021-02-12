@@ -17,9 +17,13 @@ using SystemPath = System.IO.Path;
 
 namespace Fluent.IO.Async
 {
+    /// <summary>
+    /// A fluent and asynchronous abstraction over System.IO.
+    /// </summary>
+    /// <remarks>Don't forget to await your Paths!</remarks>
     [TypeConverter(typeof(PathConverter))]
     [AsyncMethodBuilder(typeof(TaskAwaiter<Path>))]
-    public sealed class Path
+    public sealed class Path : IAsyncEnumerable<Path>
     {
         #region constructors and factories
         /// <summary>
@@ -102,7 +106,7 @@ namespace Fluent.IO.Async
         private Path(IAsyncEnumerable<string> paths, Path previous)
         {
             CancellationToken = previous.CancellationToken;
-            Paths = paths;
+            Paths = new CachingAsyncEnumerable<string>(paths);
             Previous = previous;
         }
 
@@ -140,9 +144,13 @@ namespace Fluent.IO.Async
             // No need to await if the underlying list of paths is synchronous
             if (Paths is not IEnumerable<string>)
             {
+                var enumerated = new List<string>();
                 await foreach (string path in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
+                    enumerated.Add(path);
                 }
+                // This should prevent multiple enumerations from replaying all operations in the chain that led here.
+                return new Path((IAsyncEnumerable<string>)new SyncAsyncEnumerable<string>(enumerated), Previous);
             }
             return this;
         }, CancellationToken).GetAwaiter();
@@ -215,6 +223,19 @@ namespace Fluent.IO.Async
         public override string ToString() => string.Join(", ", Paths);
         #endregion
 
+        #region enumerator
+        private async IAsyncEnumerable<Path> Enumerate()
+        {
+            await foreach(string p in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+            {
+                yield return new(p, this);
+            }
+        }
+
+        public IAsyncEnumerator<Path> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
+            Enumerate().GetAsyncEnumerator();
+        #endregion
+
         #region static paths and methods
         /// <summary>
         /// An empty set path. Can be used as default value. C#'s default keyword is useless for paths.
@@ -251,7 +272,7 @@ namespace Fluent.IO.Async
         /// <summary>
         /// The previous set, from which the current one was created.
         /// </summary>
-        public Path Previous { get; }
+        private Path Previous { get; }
 
         /// <summary>
         /// The paths in this Path set.
@@ -1558,8 +1579,26 @@ namespace Fluent.IO.Async
         /// <returns>The previous path collection.</returns>
         public Path End()
         {
-            // TODO: figure out a way to await this before returning previous, or another way to ensure current will be enumerated.
-            return Previous;
+            if (Previous is null)
+            {
+                throw new InvalidOperationException("Can't end this path as it has no previous path.");
+            }
+            return new(new AsyncEnumerableWithTaskPrelude<string>(async () =>
+            {
+                // Need to await the current path to make sure all operations in the chain until now will
+                // get executed before we revert to the previous path, which may otherwise lose the ones
+                // just introduced.
+                await this;
+                return PreviousPaths();
+            }), Previous.Previous);
+
+            async IAsyncEnumerable<string> PreviousPaths()
+            {
+                await foreach (string p in Previous.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    yield return p;
+                }
+            }
         }
 
         /// <summary>
