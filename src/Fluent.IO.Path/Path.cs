@@ -419,12 +419,117 @@ namespace Fluent.IO.Async
             ), CancellationToken), this);
 
         /// <summary>
+        /// Combines each path in the set with the specified file or directory name.
+        /// Does not do any physical change to the file system.
+        /// </summary>
+        /// <param name="nameGenerator">A function that maps each path to a file or directory name.</param>
+        /// <returns>The new set of combined paths</returns>
+        private Path Combine(Func<string, Path> nameGenerator)
+        {
+            return new(CombineImpl(Paths), this);
+
+            async IAsyncEnumerable<string> CombineImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string p in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    var path = await nameGenerator(p);
+                    await foreach (string relativePath in path.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        yield return SystemPath.Combine(p, relativePath);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Combines each path in the set with the specified file or directory name.
+        /// Does not do any physical change to the file system.
+        /// </summary>
+        /// <param name="nameGenerator">A function that maps each path to a file or directory name.</param>
+        /// <returns>The new set of combined paths</returns>
+        public Path Combine(Func<Path, string> nameGenerator) => Combine(p => new Path(nameGenerator(p), this));
+
+        /// <summary>
+        /// Combines each path in the set with the specified file or directory name.
+        /// Does not do any physical change to the file system.
+        /// </summary>
+        /// <param name="nameGenerator">A function that maps each path to a file or directory name.</param>
+        /// <returns>The new set of combined paths</returns>
+        private Path Combine(Func<string, ValueTask<string>> nameGenerator) =>
+            new(Paths.Select(async p => SystemPath.Combine(p, await nameGenerator(p)), CancellationToken), this);
+
+        /// <summary>
+        /// Combines each path in the set with the specified file or directory name.
+        /// Does not do any physical change to the file system.
+        /// </summary>
+        /// <param name="nameGenerator">A function that maps each path to a file or directory name.</param>
+        /// <returns>The new set of combined paths</returns>
+        public Path Combine(Func<Path, ValueTask<Path>> nameGenerator)
+        {
+            return new(CombineImpl(Paths), this);
+
+            async IAsyncEnumerable<string> CombineImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach(string p in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    var path = await nameGenerator(new Path(p, this));
+                    await foreach(string relativePath in path.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        yield return SystemPath.Combine(p, relativePath);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Combines each path in the set with the specified file or directory name.
+        /// Does not do any physical change to the file system.
+        /// </summary>
+        /// <param name="nameGenerator">A function that maps each path to a file or directory name.</param>
+        /// <returns>The new set of combined paths</returns>
+        private Path Combine(Func<string, ValueTask<Path>> nameGenerator)
+        {
+            return new(CombineImpl(Paths), this);
+
+            async IAsyncEnumerable<string> CombineImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string p in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    var path = await nameGenerator(p);
+                    await foreach (string relativePath in path.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        yield return SystemPath.Combine(p, relativePath);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Combines each path in the set with the specified file or directory name.
+        /// Does not do any physical change to the file system.
+        /// </summary>
+        /// <param name="nameGenerator">A function that maps each path to a file or directory name.</param>
+        /// <returns>The new set of combined paths</returns>
+        public Path Combine(Func<Path, ValueTask<string>> nameGenerator)
+        {
+            return new(CombineImpl(Paths), this);
+
+            async IAsyncEnumerable<string> CombineImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string p in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    yield return await nameGenerator(new Path(p, this));
+                }
+            }
+        }
+
+        /// <summary>
         /// Combines each path in the set with the specified relative path.
         /// Does not do any physical change to the file system.
         /// </summary>
         /// <param name="relativePath">The path to combine. Only the first path is used.</param>
         /// <returns>The combined paths.</returns>
-        public Path Combine(Path relativePath) => Combine(p => relativePath);
+        public Path Combine(Path relativePath) => Combine((Path p) => relativePath);
 
         /// <summary>
         /// Combines each path in the set with the specified tokens.
@@ -434,7 +539,7 @@ namespace Fluent.IO.Async
         /// <returns>The new set of combined paths</returns>
         public Path Combine(params string[] pathTokens)
             => pathTokens.Length == 0 ? this
-                : pathTokens.Length == 1 ? Combine(p => pathTokens[0])
+                : pathTokens.Length == 1 ? Combine((Path p) => pathTokens[0])
                 : new Path(Paths.Select(p => SystemPath.Combine(new string[] { p }.Concat(pathTokens).ToArray()), CancellationToken), this);
 
         /// Combines a base path with a relative path.

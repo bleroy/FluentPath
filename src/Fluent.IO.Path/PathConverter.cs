@@ -2,6 +2,7 @@
 // This code released under the terms of the 
 // MIT License http://opensource.org/licenses/MIT
 
+using Fluent.IO.Async;
 using System;
 using System.ComponentModel;
 
