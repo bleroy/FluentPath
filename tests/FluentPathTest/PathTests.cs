@@ -5,6 +5,7 @@
 using Fluent.IO.Async;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
 using Xunit;
 using SystemIO = System.IO;
@@ -187,27 +188,27 @@ namespace FluentPathTest
         }
 
         [Fact]
-        public void ParentWithTrailingSeparator()
+        public async void ParentWithTrailingSeparator()
         {
             Path pathUp = new Path(String.Join(
                 SystemIO.Path.DirectorySeparatorChar.ToString(),
                 new[] { "", "Projects", "MyProject", "src", "MyProject.Web", "Core", "Common", "manifest.txt", "" }))
                 .Parent();
-            Assert.Equal(@"\Projects\MyProject\src\MyProject.Web\Core\Common", string.Join("\\", pathUp.Tokens));
+            Assert.Equal(@"\Projects\MyProject\src\MyProject.Web\Core\Common", string.Join("\\", await pathUp.Tokens()));
         }
 
         [Fact]
         public void ParentTwiceGoesUpTwoDirectories()
         {
-            Path pathUpUp = _path.Parent().Parent();
-            Assert.Equal(_root + "foo", pathUpUp.ToString());
+            string pathUpUp = _path.Parent().Parent().ToString();
+            Assert.Equal(_root + "foo", pathUpUp);
         }
 
         [Fact]
         public void ParentThriceGoesUpThreeDirectory()
         {
-            Path pathUp3 = _path.Parent().Parent().Parent();
-            Assert.Equal(_root, pathUp3.ToString());
+            string pathUp3 = _path.Parent().Parent().Parent().ToString();
+            Assert.Equal(_root, pathUp3);
         }
 
         [Fact]
@@ -277,10 +278,10 @@ namespace FluentPathTest
         }
 
         [Fact]
-        public void CombineUsingLambda()
+        public async void CombineUsingLambda()
         {
             var paths = new Path("foo", "bar", "baz");
-            Path combined = paths.Combine(p => p.FileName);
+            Path combined = await paths.Combine(async p => await p.FileName());
             Assert.True(new Path(@"foo\foo", @"bar\bar", @"baz\baz") == combined);
         }
 
@@ -319,105 +320,105 @@ namespace FluentPathTest
         }
 
         [Fact]
-        public void DirectoryName()
+        public async void DirectoryName()
         {
-            Assert.Equal(_root + "foo" + _sep + "bar", _baz.DirectoryName);
+            Assert.Equal(_root + "foo" + _sep + "bar", await _baz.DirectoryName());
         }
 
         [Fact]
-        public void Extension()
+        public async void Extension()
         {
-            Assert.Equal(@".txt", _baz.Extension);
+            Assert.Equal(@".txt", await _baz.Extension());
         }
 
         [Fact]
-        public void FileName()
+        public async void FileName()
         {
-            Assert.Equal(@"baz.txt", _baz.FileName);
+            Assert.Equal(@"baz.txt", await _baz.FileName());
         }
 
         [Fact]
-        public void FileNameWithoutExtension()
+        public async void FileNameWithoutExtension()
         {
-            Assert.Equal(@"baz", _baz.FileNameWithoutExtension);
+            Assert.Equal(@"baz", await _baz.FileNameWithoutExtension());
         }
 
         [Fact]
-        public void FullPath()
+        public async void FullPath()
         {
             var path = Path.FromTokens("foo", "bar", "baz.txt");
             Assert.Equal(_sep + "foo" + _sep + "bar" + _sep + "baz.txt",
-                ((string)path.FullPath).Substring(Path.Current.ToString().Length));
+                (await path.FullPath())[Path.Current.ToString().Length..]);
         }
 
         [Fact]
-        public void HasExtensionTrue()
+        public async void HasExtensionTrue()
         {
-            Assert.True(_baz.HasExtension);
+            Assert.True(await _baz.HasExtension());
         }
 
         [Fact]
-        public void HasExtensionFalse()
+        public async void HasExtensionFalse()
         {
             Path path = Path.Root.Combine("foo", "bar", "baz");
-            Assert.False(path.HasExtension);
+            Assert.False(await path.HasExtension());
         }
 
         [Fact]
-        public void IsRootedTrueForFullPath()
+        public async void IsRootedTrueForFullPath()
         {
-            Assert.True(_baz.IsRooted);
+            Assert.True(await _baz.IsRooted());
         }
 
         [Fact]
-        public void IsRootedFalseForAppRelative()
+        public async void IsRootedFalseForAppRelative()
         {
             var path = Path.FromTokens("foo", "bar", "baz.txt");
-            Assert.False(path.IsRooted);
+            Assert.False(await path.IsRooted());
         }
 
         [Fact]
-        public void PathRoot()
+        public async void PathRoot()
         {
-            Assert.Equal(_root, _baz.PathRoot);
+            Assert.Equal(_root, await _baz.PathRoot());
         }
 
         [Fact]
         public void PreviousPath()
         {
-            var path = new Path("two", new Path("one"));
-            Assert.Equal("one", path.Previous.ToString());
+            var path = new Path("one") / "two";
+            Assert.Equal("one", path.End().ToString());
         }
 
         [Fact]
         public void EndPath()
         {
-            var path = new Path("two", new Path("one"));
+            var path = new Path("one") / "two";
             Assert.Equal("one", path.End().ToString());
             var previous = new Path("previous");
-            var collec = new Path(new[] { "current" }, previous);
+            var collec = previous / new Path(new[] { "current" });
             Assert.True(previous == collec.End());
         }
 
         [Fact]
-        public void EnumeratePathsInCollection()
+        public async void EnumeratePathsInCollection()
         {
-            IEnumerator pathEnumerator = ((IEnumerable)new Path("foo", "bar")).GetEnumerator();
-            Assert.True(pathEnumerator.MoveNext());
-            if (pathEnumerator.Current != null) Assert.Equal("foo", pathEnumerator.Current.ToString());
-            Assert.True(pathEnumerator.MoveNext());
-            if (pathEnumerator.Current != null) Assert.Equal("bar", pathEnumerator.Current.ToString());
-            Assert.False(pathEnumerator.MoveNext());
+            IAsyncEnumerator<Path> pathEnumerator = ((IAsyncEnumerable<Path>)new Path("foo", "bar")).GetAsyncEnumerator();
+            Assert.True(await pathEnumerator.MoveNextAsync());
+            Assert.Equal("foo", pathEnumerator.Current.ToString());
+
+            Assert.True(await pathEnumerator.MoveNextAsync());
+            Assert.Equal("bar", pathEnumerator.Current.ToString());
+            Assert.False(await pathEnumerator.MoveNextAsync());
         }
 
         [Fact]
-        public void ChangeExtension()
+        public async void ChangeExtension()
         {
-            var paths = new Path(
-                "foo.txt", @"bar\foo.zip", @"bar\baz.zip", "foo.avi", "bar.txt");
-            Path changed = paths.ChangeExtension(".txt");
+            var paths = new Path("foo.txt", @"bar\foo.zip", @"bar\baz.zip", "foo.avi", "bar.txt");
+            Path changed = await paths.ChangeExtension(".txt");
             Assert.True(new Path("foo.txt", @"bar\foo.txt", @"bar\baz.txt", "bar.txt") == changed);
-            Assert.True(paths == changed.Previous);
+            Assert.True(paths == await changed.End());
         }
 
         [Fact]
@@ -427,39 +428,39 @@ namespace FluentPathTest
         }
 
         [Fact]
-        public void FilterCollectionByExtension()
+        public async void FilterCollectionByExtension()
         {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
-            Path filtered = collec.WhereExtensionIs(".txt", "avi");
+            Path filtered = await collec.WhereExtensionIs(".txt", "avi");
             Assert.True(new Path("foo.txt", "foo.avi") == filtered);
-            Assert.True(collec == filtered.Previous);
+            Assert.True(collec == await filtered.End());
         }
 
         [Fact]
-        public void UseForEachOnCollection()
+        public async void UseForEachOnCollection()
         {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
             string result = "";
-            collec.ForEach(p => result += p.ToString());
+            await collec.ForEach(p => result += p.ToString());
             Assert.Equal("foo.txtfoo.binfoo.avifoo", result);
         }
 
         [Fact]
-        public void MapMaps()
+        public async void MapMaps()
         {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
-            Path mapped = collec.Map(p => new Path(p.FileNameWithoutExtension));
+            Path mapped = await collec.Map(async p => new Path(await p.FileNameWithoutExtension()));
             Assert.True(new Path("foo") == mapped);
-            Assert.True(collec == mapped.Previous);
-            mapped = collec.Map(p => new Path(p.Extension));
+            Assert.True(collec == await mapped.End());
+            mapped = await collec.Map(async p => new Path(await p.Extension()));
             Assert.True(new Path(".txt", ".bin", ".avi", "") == mapped);
         }
 
         [Fact]
-        public void FirstPath()
+        public async void FirstPath()
         {
             var collec = new Path("foo.txt", "foo.bin", "foo.avi", "foo");
-            Assert.True(new Path("foo.txt") == collec.First());
+            Assert.True(new Path("foo.txt") == await collec.First());
         }
 
         [Fact]
@@ -472,12 +473,12 @@ namespace FluentPathTest
         }
 
         [Fact]
-        public void ParentPathIsCorrectAndTrailingSeparatorDoesntMatter()
+        public async void ParentPathIsCorrectAndTrailingSeparatorDoesntMatter()
         {
             var path = new Path("foo" + _sep + "bar" + _sep + "baz.dll");
 
-            Assert.True(new Path("foo" + _sep + "bar") == path.Parent());
-            Assert.True(new Path("foo" + _sep + "bar" + _sep) == path.Parent());
+            Assert.True(new Path("foo" + _sep + "bar") == await path.Parent());
+            Assert.True(new Path("foo" + _sep + "bar" + _sep) == await path.Parent());
         }
     }
 }
