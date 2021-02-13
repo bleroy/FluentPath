@@ -33,29 +33,6 @@ namespace Fluent.Utils
         }
 
         /// <summary>
-        /// Generates a synchronous enumerable from an asynchronous one, which of course comes at a potential perf cost.
-        /// </summary>
-        /// <param name="source">The async enumerable to enumerate synchronously.</param>
-        /// <returns>A synchronous enumerable with the same contents as the original asynchronous one.</returns>
-        public static IEnumerable<T> ToEnumerable<T>(
-            this IAsyncEnumerable<T> source,
-            CancellationToken cancellationToken = default)
-        {
-            var enumerator = source.GetAsyncEnumerator(cancellationToken);
-            try
-            {
-                while (enumerator.MoveNextAsync().GetAwaiter().GetResult())
-                {
-                    yield return enumerator.Current;
-                }
-            }
-            finally
-            {
-                if (enumerator != null) enumerator.DisposeAsync().GetAwaiter().GetResult();
-            }
-        }
-
-        /// <summary>
         /// Applies a transformation on each item in an enumerable.
         /// </summary>
         /// <param name="source">The enumerable.</param>
@@ -206,33 +183,9 @@ namespace Fluent.Utils
         }
 
         /// <summary>
-        /// Returns the first item in the enumerable or the default value for the type.
-        /// </summary>
-        /// <param name="source">The enumerable.</param>
-        /// <param name="cancellationToken">A cancellation token</param>
-        /// <returns>The first item in the enumerable or default.</returns>
-        public static async ValueTask<T?> FirstOrDefault<T>(
-            this IAsyncEnumerable<T> source,
-            CancellationToken cancellationToken = default)
-        {
-            var enumerator = source.GetAsyncEnumerator(cancellationToken);
-            try
-            {
-                if (await enumerator.MoveNextAsync().ConfigureAwait(false))
-                {
-                    return enumerator.Current;
-                }
-                return default;
-            }
-            finally
-            {
-                if (enumerator != null) await enumerator.DisposeAsync().ConfigureAwait(false);
-            }
-        }
-
-        /// <summary>
         /// Checks if all items in an async enumerable satisfy a predicate.
         /// </summary>
+        /// <remarks>This method does not bail out early, and will enumerate to the end unless cancelled.</remarks>
         /// <param name="source">The enumerable.</param>
         /// <param name="predicate">The predicate to evaluate on each item.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
@@ -242,16 +195,18 @@ namespace Fluent.Utils
             Predicate<T> predicate,
             CancellationToken cancellationToken = default)
         {
+            bool result = true;
             await foreach(T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                if (!predicate(item)) return false;
+                if (!predicate(item)) result = false;
             }
-            return true;
+            return result;
         }
 
         /// <summary>
         /// Checks if any item in an async enumerable satisfy a predicate.
         /// </summary>
+        /// <remarks>This method does not bail out early, and will enumerate to the end unless cancelled.</remarks>
         /// <param name="source">The enumerable.</param>
         /// <param name="predicate">The predicate to evaluate on each item.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
@@ -261,11 +216,12 @@ namespace Fluent.Utils
             Predicate<T> predicate,
             CancellationToken cancellationToken = default)
         {
+            bool result = false;
             await foreach (T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                if (predicate(item)) return true;
+                if (predicate(item)) result = true;
             }
-            return false;
+            return result;
         }
 
         /// <summary>
@@ -280,27 +236,18 @@ namespace Fluent.Utils
             int skipCount,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var enumerator = source.GetAsyncEnumerator(cancellationToken);
-            try
+            int i = 0;
+            await foreach (T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                for (int i = 0; i < skipCount; i++)
-                {
-                    if (!await enumerator.MoveNextAsync().ConfigureAwait(false)) yield break;
-                }
-                while (await enumerator.MoveNextAsync().ConfigureAwait(false))
-                {
-                    yield return enumerator.Current;
-                }
-            }
-            finally
-            {
-                if (enumerator != null) await enumerator.DisposeAsync().ConfigureAwait(false);
+                if (i++ < skipCount) continue;
+                yield return item;
             }
         }
 
         /// <summary>
         /// Enumerates the first <see cref="skipCount"/> items from the enumerable, unless the enumerable breaks first.
         /// </summary>
+        /// <remarks>This method does not bail out early, and will enumerate to the end unless cancelled.</remarks>
         /// <param name="source">The original enumerable.</param>
         /// <param name="takeCount">The number of items to take.</param>
         /// <param name="cancellationToken">A cancellation token.</param>
@@ -310,42 +257,10 @@ namespace Fluent.Utils
             int takeCount,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var enumerator = source.GetAsyncEnumerator(cancellationToken);
-            try
+            int i = 0;
+            await foreach (T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                for (int i = 0; i < takeCount; i++)
-                {
-                    if (await enumerator.MoveNextAsync().ConfigureAwait(false))
-                    {
-                        yield return enumerator.Current;
-                    }
-                }
-            }
-            finally
-            {
-                if (enumerator != null) await enumerator.DisposeAsync();
-            }
-        }
-
-        /// <summary>
-        /// Concatenates two enumerables.
-        /// </summary>
-        /// <param name="source">The first enumerable.</param>
-        /// <param name="second">The second enumerable.</param>
-        /// <param name="cancellationToken">A cancellation token.</param>
-        /// <returns>The concatenation of the two enumerables.</returns>
-        public static async IAsyncEnumerable<T> Concat<T>(
-            this IAsyncEnumerable<T> source,
-            IAsyncEnumerable<T> second,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            await foreach(T item in source.WithCancellation(cancellationToken).ConfigureAwait(false))
-            {
-                yield return item;
-            }
-            await foreach (T item in second.WithCancellation(cancellationToken).ConfigureAwait(false))
-            {
-                yield return item;
+                if (i++ < takeCount) yield return item;
             }
         }
 

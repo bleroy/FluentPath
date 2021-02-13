@@ -211,7 +211,14 @@ namespace Fluent.IO.Async
         /// <returns>A hash code that depends uniquely on the distinct paths the Path object enumerates.</returns>
         public override int GetHashCode()
         {
-            var distinctValues = new SortedSet<string>(Paths.ToEnumerable(CancellationToken));
+            var distinctValues = new SortedSet<string>();
+            Task.Run(async () =>
+            {
+                await foreach (string p in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    distinctValues.Add(p);
+                }
+            }).GetAwaiter().GetResult();
             var hash = new HashCode();
             foreach (string path in distinctValues)
             {
@@ -220,7 +227,21 @@ namespace Fluent.IO.Async
             return hash.ToHashCode();
         }
 
-        public override string ToString() => string.Join(", ", Paths);
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+            bool first = true;
+            Task.Run(async () =>
+            {
+                await foreach (string p in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    if (!first) sb.Append(", ");
+                    else first = false;
+                    sb.Append(p);
+                }
+            });
+            return sb.ToString();
+        }
         #endregion
 
         #region enumerator
@@ -979,17 +1000,18 @@ namespace Fluent.IO.Async
 
         private async ValueTask<string> FirstPath()
         {
-            var enumerator = Paths.GetAsyncEnumerator(CancellationToken);
-            try
+            string? result = null;
+            // We must enumerate the whole thing, to ensure code up the call chain gets executed even if the chain stops here.
+            await foreach(string p in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
             {
-                if (await enumerator.MoveNextAsync())
+                if (p is not null && result is null)
                 {
-                    return enumerator.Current;
+                    result = p;
                 }
             }
-            finally
+            if (result is not null)
             {
-                if (enumerator != null) await enumerator.DisposeAsync();
+                return result;
             }
             throw new InvalidOperationException("Can't get the first element of an empty collection.");
         }
@@ -2001,15 +2023,46 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
-        public Path Add(params string[] paths) => new(paths.Union(Paths.ToEnumerable()), this);
+        public Path Add(params string[] paths) => Add(paths.Select(p => new Path(p, this)));
 
         /// <summary>
         /// Adds several paths to the current one and makes one set out of the result.
         /// </summary>
         /// <param name="paths">The paths to add to the current set.</param>
         /// <returns>The composite set.</returns>
-        public Path Add(params Path[] paths)
-            => new(paths.SelectMany(p => p.Paths.ToEnumerable()).Union(Paths.ToEnumerable()), this);
+        public Path Add(params Path[] paths) => Add((IEnumerable<Path>)paths);
+
+        /// <summary>
+        /// Adds several paths to the current one and makes one set out of the result.
+        /// </summary>
+        /// <param name="paths">The paths to add to the current set.</param>
+        /// <returns>The composite set.</returns>
+        public Path Add(IEnumerable<string> paths) => Add(paths.Select(p => new Path(p, this)));
+
+        /// <summary>
+        /// Adds several paths to the current one and makes one set out of the result.
+        /// </summary>
+        /// <param name="paths">The paths to add to the current set.</param>
+        /// <returns>The composite set.</returns>
+        public Path Add(IEnumerable<Path> paths)
+        {
+            return new(AddImpl(Paths, paths), this);
+
+            async IAsyncEnumerable<string> AddImpl(IAsyncEnumerable<string> first, IEnumerable<Path> others)
+            {
+                await foreach (string p in first.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    yield return p;
+                }
+                foreach (Path other in others)
+                {
+                    await foreach (string p in other.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        yield return p;
+                    }
+                }
+            }
+        }
         #endregion
 
         #region attributes and dates/times

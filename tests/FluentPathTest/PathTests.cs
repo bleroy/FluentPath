@@ -4,7 +4,6 @@
 
 using Fluent.IO.Async;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using Xunit;

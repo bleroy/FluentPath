@@ -1,5 +1,8 @@
-﻿using Fluent.IO.Async;
-using System.Collections.Generic;
+﻿// Copyright © 2021 Bertrand Le Roy.  All Rights Reserved.
+// This code released under the terms of the 
+// MIT License http://opensource.org/licenses/MIT
+
+using Fluent.IO.Async;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
