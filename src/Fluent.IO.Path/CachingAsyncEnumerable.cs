@@ -13,6 +13,7 @@ namespace Fluent.IO.Async
     public class CachingAsyncEnumerable<T> : IAsyncEnumerable<T>
     {
         private List<T>? _cache;
+        private IAsyncEnumerable<T>? _syncAsyncCache;
         private bool _cached;
         private object _lock = new();
         private readonly IAsyncEnumerable<T> _wrapped;
@@ -22,9 +23,9 @@ namespace Fluent.IO.Async
             _wrapped = wrapped;
         }
 
-        private async IAsyncEnumerable<T> Enumerate([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            lock(_lock)
+            lock (_lock)
             {
                 if (!_cached)
                 {
@@ -33,31 +34,44 @@ namespace Fluent.IO.Async
                         throw new InvalidOperationException("Multiple concurrent attempts to enumerate.");
                     }
                     _cache = new();
+                    _syncAsyncCache = new SyncAsyncEnumerable<T>(_cache);
+                    return new CachingEnumerator<T>(_wrapped.GetAsyncEnumerator(cancellationToken), _cache, whenDone: () => { _cached = true; });
                 }
             }
-            if (_cache is null)
-            {
-                throw new InvalidOperationException("_cache should not be null.");
-            }
-            if (_cached)
-            {
-                foreach(T item in _cache)
-                {
-                    yield return item;
-                }
-            }
-            else
-            {
-                await foreach (T item in _wrapped.WithCancellation(cancellationToken).ConfigureAwait(false))
-                {
-                    _cache.Add(item);
-                    yield return item;
-                }
-                _cached = true;
-            }
+            if (_syncAsyncCache is null) throw new InvalidOperationException("This should never happen.");
+            return _syncAsyncCache.GetAsyncEnumerator();
         }
 
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
-            Enumerate(cancellationToken).GetAsyncEnumerator(cancellationToken);
+        private class CachingEnumerator<U> : IAsyncEnumerator<U>
+        {
+            private readonly IList<U> _cache;
+            private readonly IAsyncEnumerator<U> _wrapped;
+            private readonly Action _whenDone;
+
+            public CachingEnumerator(IAsyncEnumerator<U> wrapped, IList<U> cache, Action whenDone)
+            {
+                _wrapped = wrapped;
+                _cache = cache;
+                _whenDone = whenDone;
+            }
+
+            public U Current => _wrapped.Current;
+
+            public async ValueTask DisposeAsync()
+            {
+                await _wrapped.DisposeAsync();
+            }
+
+            public async ValueTask<bool> MoveNextAsync()
+            {
+                if (await _wrapped.MoveNextAsync())
+                {
+                    _cache.Add(_wrapped.Current);
+                    return true;
+                }
+                _whenDone();
+                return false;
+            }
+        }
     }
 }
