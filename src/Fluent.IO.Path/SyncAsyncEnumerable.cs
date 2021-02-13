@@ -18,18 +18,30 @@ namespace Fluent.IO.Async
             SyncEnumerable = syncEnumerable;
         }
 
-        public async IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-        {
-            foreach (T item in SyncEnumerable)
-            {
-                if (cancellationToken.IsCancellationRequested) throw new TaskCanceledException();
-                yield return item;
-            }
-            await Task.CompletedTask;
-        }
+        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
+            new SyncAsyncEnumerator<T>(SyncEnumerable.GetEnumerator());
 
         public IEnumerator<T> GetEnumerator() => SyncEnumerable.GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => SyncEnumerable.GetEnumerator();
+
+        private class SyncAsyncEnumerator<U> : IAsyncEnumerator<U>
+        {
+            private IEnumerator<U> _enumerator;
+
+            public SyncAsyncEnumerator(IEnumerator<U> enumerator)
+            {
+                _enumerator = enumerator;
+            }
+
+            public U Current => _enumerator.Current;
+
+            public async ValueTask DisposeAsync() => await Task.CompletedTask;
+
+            public async ValueTask<bool> MoveNextAsync()
+            {
+                return await new ValueTask<bool>(_enumerator.MoveNext());
+            }
+        }
     }
 }
