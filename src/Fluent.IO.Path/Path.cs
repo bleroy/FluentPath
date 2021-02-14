@@ -172,17 +172,20 @@ namespace Fluent.IO.Async
             if (obj is not Path paths)
             {
                 if (obj is not string str) return false;
-                IAsyncEnumerator<string> enumerator = Paths.GetAsyncEnumerator(CancellationToken);
-                try
+                bool result = false;
+                bool first = true;
+                Task.Run(async () =>
                 {
-                    if (!enumerator.MoveNextAsync().GetAwaiter().GetResult()) return false;
-                    if (enumerator.Current != str) return false;
-                    return !enumerator.MoveNextAsync().GetAwaiter().GetResult();
-                }
-                finally
-                {
-                    if (enumerator != null) enumerator.DisposeAsync().GetAwaiter().GetResult();
-                }
+                    await foreach(string p in Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        if (first)
+                        {
+                            result = p == str;
+                            first = false;
+                        }
+                    }
+                }).GetAwaiter().GetResult();
+                return result;
             }
             return IsSameAs(paths).GetAwaiter().GetResult();
         }
