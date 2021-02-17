@@ -144,9 +144,6 @@ namespace FluentPathTest
                 await Path.FromTokens(_sep + "foo").MakeRelativeTo(_sep + "baz"));
 
         [Fact]
-        public void NullPathThrows() => Assert.Throws<ArgumentNullException>(() => Path.Empty);
-
-        [Fact]
         public void EqualsTrueForPathsFromSameString()
         {
             Assert.True(new Path(_temp) == new Path(_temp));
@@ -288,7 +285,7 @@ namespace FluentPathTest
         public void CombineTwoPaths()
         {
             var paths = new Path("foo", "bar");
-            Path combined = paths.Combine(new Path("baz").Combine("truc"));
+            Path combined = paths.Combine(new Path("baz")/"truc");
             Assert.True(new Path(@"foo\baz\truc", @"bar\baz\truc") == combined);
         }
 

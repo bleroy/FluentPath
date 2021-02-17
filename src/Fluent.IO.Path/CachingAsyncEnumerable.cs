@@ -4,7 +4,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,7 +14,7 @@ namespace Fluent.IO.Async
         private List<T>? _cache;
         private IAsyncEnumerable<T>? _syncAsyncCache;
         private bool _cached;
-        private object _lock = new();
+        private readonly object _lock = new();
         private readonly IAsyncEnumerable<T> _wrapped;
 
         public CachingAsyncEnumerable(IAsyncEnumerable<T> wrapped)
@@ -35,7 +34,10 @@ namespace Fluent.IO.Async
                     }
                     _cache = new();
                     _syncAsyncCache = new SyncAsyncEnumerable<T>(_cache);
-                    return new CachingEnumerator<T>(_wrapped.GetAsyncEnumerator(cancellationToken), _cache, whenDone: () => { _cached = true; });
+                    return new CachingEnumerator<T>(
+                        _wrapped.GetAsyncEnumerator(cancellationToken),
+                        _cache,
+                        whenDone: () => { _cached = true; });
                 }
             }
             if (_syncAsyncCache is null) throw new InvalidOperationException("This should never happen.");

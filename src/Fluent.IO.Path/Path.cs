@@ -127,10 +127,11 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="rawPaths">The paths to normalize</param>
         /// <returns>The normalized paths</returns>
-        private static IEnumerable<string> Normalize(IEnumerable<string> rawPaths) => rawPaths
+        private static IList<string> Normalize(IEnumerable<string> rawPaths) => rawPaths
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Select(s => s[^1] == SystemPath.DirectorySeparatorChar && SystemPath.GetPathRoot(s) != s ? s[0..^1] : s)
-            .Distinct();
+            .Distinct()
+            .ToList();
         #endregion
 
         #region chain terminator
@@ -242,7 +243,7 @@ namespace Fluent.IO.Async
                     else first = false;
                     sb.Append(p);
                 }
-            });
+            }).GetAwaiter().GetResult();
             return sb.ToString();
         }
         #endregion
@@ -542,7 +543,7 @@ namespace Fluent.IO.Async
             {
                 await foreach (string p in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
                 {
-                    yield return await nameGenerator(new Path(p, this));
+                    yield return SystemPath.Combine(p, await nameGenerator(new Path(p, this)));
                 }
             }
         }
