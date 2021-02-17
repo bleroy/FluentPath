@@ -84,14 +84,14 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="path">A path string.</param>
         /// <param name="previous">The previous set.</param>
-        private Path(string path, Path previous) : this(new[] { path }, previous) { }
+        public Path(string path, Path previous) : this(new[] { path }, previous) { }
 
         /// <summary>
         /// Creates a collection of paths from a list of path strings and a previous list of paths.
         /// </summary>
         /// <param name="paths">The list of paths in the set.</param>
         /// <param name="previous">The previous set.</param>
-        private Path(IEnumerable<string> paths, Path previous)
+        public Path(IEnumerable<string> paths, Path previous)
         {
             CancellationToken = previous.CancellationToken;
             Paths = new SyncAsyncEnumerable<string>(Normalize(paths));
@@ -103,7 +103,7 @@ namespace Fluent.IO.Async
         /// </summary>
         /// <param name="paths">The list of paths in the set.</param>
         /// <param name="previous">The previous set.</param>
-        private Path(IAsyncEnumerable<string> paths, Path previous)
+        public Path(IAsyncEnumerable<string> paths, Path previous)
         {
             CancellationToken = previous.CancellationToken;
             Paths = new CachingAsyncEnumerable<string>(paths);
@@ -1002,7 +1002,7 @@ namespace Fluent.IO.Async
         /// <returns>A new path from the first path of the set</returns>
         public Path First() => new(Paths.Take(1), this);
 
-        private async ValueTask<string> FirstPath()
+        public async ValueTask<string> FirstPath()
         {
             string? result = null;
             // We must enumerate the whole thing, to ensure code up the call chain gets executed even if the chain stops here.
