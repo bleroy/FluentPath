@@ -7,9 +7,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
-using Path = Fluent.IO.Path;
+using System.Threading.Tasks;
 
-namespace Fluent.Zip
+namespace Fluent.IO.Async.Zip
 {
     /// <summary>
     /// A set of FluentPath extensions that surface Compression features.
@@ -22,11 +22,11 @@ namespace Fluent.Zip
         /// <param name="path">The zip files.</param>
         /// <param name="target">The directory where the files must be unzipped.</param>
         /// <returns>The uncompressed files and folders.</returns>
-        public static Path Unzip(this Path path, Path target)
-        {
-            path.Open((s, p) => target.ForEach(t => new ZipArchive(s, ZipArchiveMode.Read).ExtractToDirectory(t.FullPath)));
-            return target;
-        }
+        public static Path Unzip(this Path path, Path target) =>
+            path.Open(async (s, p) =>
+                await target.ForEach(async t =>
+                    new ZipArchive(s, ZipArchiveMode.Read)
+                        .ExtractToDirectory(await t.FullPath())));
 
         /// <summary>
         /// Unzips all files in the path.
@@ -34,28 +34,42 @@ namespace Fluent.Zip
         /// <param name="path">The zip files.</param>
         /// <param name="unzipAction">An action that handles the unzipping of each file.</param>
         /// <returns>The original path object</returns>
-        public static Path Unzip(this Path path, Action<string, Stream> unzipAction)
-        {
+        public static Path Unzip(this Path path, Action<string, Stream> unzipAction) =>
             path.Open((s, p) => Unzip(s, unzipAction));
-            return path;
-        }
+
+        /// <summary>
+        /// Unzips all files in the path.
+        /// </summary>
+        /// <param name="path">The zip files.</param>
+        /// <param name="unzipAction">An action that handles the unzipping of each file.</param>
+        /// <returns>The original path object</returns>
+        public static Path Unzip(this Path path, Func<string, Stream, ValueTask> unzipAction) =>
+            path.Open(async (s, p) => await Unzip(s, unzipAction));
 
         /// <summary>
         /// Unzips a byte array and calls an action for each unzipped file.
         /// </summary>
         /// <param name="zip">The zip byte array.</param>
         /// <param name="unzipAction">The action to perform with each unzipped file.</param>
-        public static void Unzip(byte[] zip, Action<string, Stream> unzipAction)
-        {
+        public static void Unzip(this byte[] zip, Action<string, Stream> unzipAction) =>
             Unzip(new MemoryStream(zip, false), unzipAction);
-        }
+
+        /// <summary>
+        /// Unzips a byte array and calls an action for each unzipped file.
+        /// </summary>
+        /// <param name="zip">The zip byte array.</param>
+        /// <param name="unzipAction">The action to perform with each unzipped file.</param>
+        public static async ValueTask Unzip(
+            this byte[] zip,
+            Func<string, Stream, ValueTask> unzipAction) =>
+            await Unzip(new MemoryStream(zip, false), unzipAction);
 
         /// <summary>
         /// Unzips a stream and calls an action for each unzipped file.
         /// </summary>
         /// <param name="zip">The zip byte array.</param>
         /// <param name="unzipAction">The action to perform with each unzipped file.</param>
-        public static void Unzip(Stream zip, Action<string, Stream> unzipAction)
+        public static void Unzip(this Stream zip, Action<string, Stream> unzipAction)
         {
             using var zipArchive = new ZipArchive(zip, ZipArchiveMode.Read);
             foreach (ZipArchiveEntry zipEntry in zipArchive.Entries)
@@ -65,25 +79,71 @@ namespace Fluent.Zip
         }
 
         /// <summary>
+        /// Unzips a stream and calls an action for each unzipped file.
+        /// </summary>
+        /// <param name="zip">The zip byte array.</param>
+        /// <param name="unzipAction">The action to perform with each unzipped file.</param>
+        public static async ValueTask Unzip(
+            this Stream zip,
+            Func<string, Stream, ValueTask> unzipAction)
+        {
+            using var zipArchive = new ZipArchive(zip, ZipArchiveMode.Read);
+            foreach (ZipArchiveEntry zipEntry in zipArchive.Entries)
+            {
+                await unzipAction(zipEntry.FullName, zipEntry.Open());
+            }
+        }
+
+        /// <summary>
         /// Unzips all files in the path.
         /// </summary>
         /// <param name="path">The zip files.</param>
         /// <param name="unzipAction">An action that handles the unzipping of each file.</param>
         /// <returns>The original path object</returns>
-        public static Path Unzip(this Path path, Action<string, byte[]> unzipAction)
-        {
+        public static Path Unzip(this Path path, Action<string, byte[]> unzipAction) =>
             path.Open((s, p) => Unzip(s, unzipAction));
-            return path;
-        }
+
+        /// <summary>
+        /// Unzips all files in the path.
+        /// </summary>
+        /// <param name="path">The zip files.</param>
+        /// <param name="unzipAction">An action that handles the unzipping of each file.</param>
+        /// <returns>The original path object</returns>
+        public static Path Unzip(this Path path, Func<string, byte[], ValueTask> unzipAction) =>
+            path.Open(async (s, p) => await Unzip(s, unzipAction));
 
         /// <summary>
         /// Unzips a byte array and calls an action for each unzipped file.
         /// </summary>
         /// <param name="zip">The zip byte array.</param>
         /// <param name="unzipAction">The action to perform with each unzipped file.</param>
-        public static void Unzip(byte[] zip, Action<string, byte[]> unzipAction)
+        public static async ValueTask Unzip(this byte[] zip, Action<string, byte[]> unzipAction) =>
+            await Unzip(new MemoryStream(zip, false), unzipAction);
+
+        /// <summary>
+        /// Unzips a byte array and calls an action for each unzipped file.
+        /// </summary>
+        /// <param name="zip">The zip byte array.</param>
+        /// <param name="unzipAction">The action to perform with each unzipped file.</param>
+        public static async ValueTask Unzip(
+            this byte[] zip,
+            Func<string, byte[], ValueTask> unzipAction) =>
+            await Unzip(new MemoryStream(zip, false), unzipAction);
+
+        /// <summary>
+        /// Unzips a stream and calls an action for each unzipped file.
+        /// </summary>
+        /// <param name="zip">The zip byte array.</param>
+        /// <param name="unzipAction">The action to perform with each unzipped file.</param>
+        public static async ValueTask Unzip(this Stream zip, Action<string, byte[]> unzipAction)
         {
-            Unzip(new MemoryStream(zip, false), unzipAction);
+            using var zipArchive = new ZipArchive(zip, ZipArchiveMode.Read);
+            foreach (ZipArchiveEntry zipEntry in zipArchive.Entries)
+            {
+                var output = new MemoryStream();
+                await zipEntry.Open().CopyToAsync(output);
+                unzipAction(zipEntry.FullName, output.ToArray());
+            }
         }
 
         /// <summary>
@@ -91,14 +151,14 @@ namespace Fluent.Zip
         /// </summary>
         /// <param name="zip">The zip byte array.</param>
         /// <param name="unzipAction">The action to perform with each unzipped file.</param>
-        public static void Unzip(Stream zip, Action<string, byte[]> unzipAction)
+        public static async ValueTask Unzip(this Stream zip, Func<string, byte[], ValueTask> unzipAction)
         {
             using var zipArchive = new ZipArchive(zip, ZipArchiveMode.Read);
             foreach (ZipArchiveEntry zipEntry in zipArchive.Entries)
             {
                 var output = new MemoryStream();
-                zipEntry.Open().CopyTo(output);
-                unzipAction(zipEntry.FullName, output.ToArray());
+                await zipEntry.Open().CopyToAsync(output);
+                await unzipAction(zipEntry.FullName, output.ToArray());
             }
         }
 
@@ -118,12 +178,20 @@ namespace Fluent.Zip
         /// <returns>The zipped path.</returns>
         public static Path Zip(this Path target, Path path)
         {
-            var files = path.AllFiles().ToDictionary(p => p.MakeRelativeTo(path));
-            ZipToStream(
-                new Path(files.Keys.Select(p => (string)p), target),
-                p => File.OpenRead((string)files[p]),
-                File.OpenWrite((string)target));
-            return target;
+            return new Path(ZipImpl(target.Paths), target);
+
+            async IAsyncEnumerable<string> ZipImpl(IAsyncEnumerable<string> paths)
+            {
+                var files = await path.AllFiles().MakeRelativeTo(path);
+                await foreach (string targetPath in paths.WithCancellation(target.CancellationToken).ConfigureAwait(false))
+                {
+                    await ZipToStream(
+                        files,
+                        filePath => File.OpenRead(filePath),
+                        File.OpenWrite(targetPath));
+                    yield return targetPath;
+                }
+            }
         }
 
         /// <summary>
@@ -132,13 +200,21 @@ namespace Fluent.Zip
         /// <param name="target">The path of the zip file to build.</param>
         /// <param name="contents">The contents to zip.</param>
         /// <returns>The path of the zipped file.</returns>
-        public static Path Zip(this Path target, IDictionary<Path, byte[]> contents)
+        public static Path Zip(this Path target, IDictionary<string, byte[]> contents)
         {
-            ZipToStream(
-                new Path(contents.Keys.Select(p => (string)p), target),
-                p => new MemoryStream(contents[p]),
-                File.OpenWrite((string)target));
-            return target;
+            return new Path(ZipImpl(target.Paths), target);
+
+            async IAsyncEnumerable<string> ZipImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach(string targetPath in paths.WithCancellation(target.CancellationToken).ConfigureAwait(false))
+                {
+                    await ZipToStream(
+                        new Path(contents.Keys, target),
+                        p => new MemoryStream(contents[p]),
+                        File.OpenWrite(targetPath));
+                    yield return targetPath;
+                }
+            }
         }
 
         /// <summary>
@@ -146,22 +222,25 @@ namespace Fluent.Zip
         /// </summary>
         /// <param name="filesToZip">The list of files to zip</param>
         /// <returns>The byte array for the zip</returns>
-        public static byte[] Zip(this Path filesToZip)
+        public static async ValueTask<byte[]> Zip(this Path filesToZip)
         {
             var output = new MemoryStream();
-            ZipToStream(filesToZip, p => File.OpenRead((string)p), output);
+            await ZipToStream(filesToZip, p => File.OpenRead(p), output);
             return output.ToArray();
         }
 
-        private static void ZipToStream(Path zipPaths, Func<Path, Stream> zipPathToContent, Stream output)
+        private static async ValueTask ZipToStream(
+            Path zipPaths,
+            Func<string, Stream> zipPathToContent,
+            Stream output)
         {
             using var zipArchive = new ZipArchive(output, ZipArchiveMode.Create);
-            foreach (Path path in zipPaths)
+            await foreach (string path in zipPaths.WithCancellation(zipPaths.CancellationToken).ConfigureAwait(false))
             {
-                ZipArchiveEntry entry = zipArchive.CreateEntry(path.First().ToString(), CompressionLevel.Optimal);
-                Stream writer = entry.Open();
-                Stream reader = zipPathToContent(path);
-                reader.CopyTo(writer);
+                ZipArchiveEntry entry = zipArchive.CreateEntry(path, CompressionLevel.Optimal);
+                using Stream writer = entry.Open();
+                using Stream reader = zipPathToContent(path);
+                await reader.CopyToAsync(writer);
                 writer.Close();
                 reader.Close();
             }
