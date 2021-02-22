@@ -10,12 +10,14 @@ using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using System.Threading.Tasks;
 using SystemIO = System.IO;
 using Fluent.IO;
-using Fluent.IO.Windows;
+using Fluent.IO.Async;
+using Fluent.IO.Async.Windows;
+using Fluent.IO.Async.Zip;
+using Fluent.Utils;
 using Xunit;
-using Fluent.Zip;
-using System.Threading.Tasks;
 
 namespace FluentPathSpec
 {
@@ -28,7 +30,7 @@ namespace FluentPathSpec
         private byte[] _zipped;
         private Exception _exception;
 
-        public void start_with_a_clean_directory()
+        public async ValueTask start_with_a_clean_directory()
         {
             // foo.txt
             // bar/
@@ -44,102 +46,106 @@ namespace FluentPathSpec
             _path = _testRoot = new Path(SystemIO.Path.GetTempPath())
                 .CreateSubDirectory(randomFolder);
             //System.Diagnostics.Debug.WriteLine(_testRoot.ToString());
-            _path
+            await _path
                 .FileSystemEntries()
                 .Delete(true);
-            _path.CreateFile("foo.txt", "This is a text file named foo.");
+            await _path.CreateFile("foo.txt", "This is a text file named foo.");
             Path bar = _path.CreateSubDirectory("bar");
-            bar.CreateFile("baz.txt", "bar baz")
+            await bar.CreateFile("baz.txt", "bar baz")
                .LastWriteTime(DateTime.Now.AddSeconds(-2));
-            bar.CreateFile("notes.txt", "This is a text file containing notes.");
+            await bar.CreateFile("notes.txt", "This is a text file containing notes.");
             Path barbar = bar.CreateSubDirectory("bar");
-            barbar.CreateFile("deep.txt", "Deep thoughts");
+            await barbar.CreateFile("deep.txt", "Deep thoughts");
             Path sub = _path.CreateSubDirectory("sub");
-            sub.CreateSubDirectory("subsub");
-            sub.CreateFile("baz.txt", "sub baz")
+            await sub.CreateSubDirectory("subsub");
+            await sub.CreateFile("baz.txt", "sub baz")
                .LastWriteTime(DateTime.Now);
-            sub.CreateFile("binary.bin",
+            await sub.CreateFile("binary.bin",
                 new byte[] { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0xFF });
         }
 
-        public void cleanup_test_files()
+        public async ValueTask cleanup_test_files()
         {
-            _testRoot.Delete(true);
+            await _testRoot.Delete(true);
         }
 
-        public void DumpTestDirectoryStructure(Path path = null, int tab = 0)
+        public async ValueTask DumpTestDirectoryStructure(Path path = null, int tab = 0)
         {
             if (path is null) path = _testRoot;
             string indent = new String(' ', tab);
-            System.Diagnostics.Debug.WriteLine(indent + path.FileName + "/");
-            foreach (Path child in path.Directories())
+            System.Diagnostics.Debug.WriteLine(indent + await path.FileName() + "/");
+            await foreach (Path child in path.Directories())
             {
-                DumpTestDirectoryStructure(child, tab + 1);
+                await DumpTestDirectoryStructure(child, tab + 1);
             }
-            foreach (Path child in path.Files())
+            await foreach (Path child in path.Files())
             {
-                System.Diagnostics.Debug.WriteLine(indent + " " + child.FileName);
+                System.Diagnostics.Debug.WriteLine(indent + " " + await child.FileName());
             }
         }
 
-        public void add_permissions_to(string path)
+        public async ValueTask add_permissions_to(string path)
         {
             SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
             Path filePath = _path.CombineWithWindowsPath(path);
-            FileSystemSecurity accessControl = filePath.AccessControl();
+            FileSystemSecurity accessControl = await filePath.AccessControl();
             accessControl.AddAccessRule(
                     new FileSystemAccessRule(
                         user, FileSystemRights.Read, InheritanceFlags.None,
                         PropagationFlags.None, AccessControlType.Allow)
                 );
-            filePath.AccessControl(accessControl);
+            await filePath.AccessControl(accessControl);
         }
 
-        public void recursively_select(string searchPattern)
-            => _result = _path.FileSystemEntries(searchPattern, true);
+        public async ValueTask recursively_select(string searchPattern) =>
+            _result = await _path.FileSystemEntries(searchPattern, true);
 
-        public void select_subdirectories() => _result = _path.Directories();
+        public async ValueTask select_subdirectories() =>
+            _result = await _path.Directories();
 
-        public void select_deep_subdirectories()
-            => _result = _path.Directories("*", true);
+        public async ValueTask  select_deep_subdirectories() =>
+            _result = await _path.Directories("*", true);
 
-        public void select_deep_subdirectories_with_the_pattern(string pattern)
-            => _result = _path.Directories(pattern, true);
+        public async ValueTask select_deep_subdirectories_with_the_pattern(string pattern) =>
+            _result = await _path.Directories(pattern, true);
 
-        public void use_a_predicate_to_select_subdirectories_with_a_name_starting_with(string prefix)
-            => _result = _path.Directories(p => p.FileName.StartsWith(prefix)); // = "sub"
+        public async ValueTask use_a_predicate_to_select_subdirectories_with_a_name_starting_with(string prefix) =>
+            _result = await _path.Directories(async p => (await p.FileName()).StartsWith(prefix)); // = "sub"
 
-        public void use_a_predicate_to_select_deep_subdirectories_with_a_name_starting_with(string prefix)
-            => _result = _path.Directories(p => p.FileName.StartsWith(prefix), true);
+        public async ValueTask use_a_predicate_to_select_deep_subdirectories_with_a_name_starting_with(string prefix) =>
+            _result = await _path.Directories(async p => (await p.FileName()).StartsWith(prefix), true);
 
-        public void select_all_files() => _result = _path.AllFiles();
+        public async ValueTask select_all_files() =>
+            _result = await _path.AllFiles();
 
-        public void select_files() => _result = _path.Files();
+        public async ValueTask select_files() =>
+            _result = await _path.Files();
 
-        public void use_a_predicate_to_search_for_files_with_extension(string extension)
-            => _result = _path.Files(f => f.Extension == extension); // ".txt"
+        public async ValueTask use_a_predicate_to_search_for_files_with_extension(string extension) =>
+            _result = await _path.Files(async f => await f.Extension() == extension); // ".txt"
 
-        public void use_a_predicate_to_search_for_deep_files_with_extension(string extension)
-            => _result = _path.Files(f => f.Extension == extension, true);
+        public async ValueTask use_a_predicate_to_search_for_deep_files_with_extension(string extension) =>
+            _result = await _path.Files(async f => await f.Extension() == extension, true);
 
-        public void search_for_deep_files_with_pattern(string pattern)
-            => _result = _path.Files(pattern, true);
+        public async ValueTask search_for_deep_files_with_pattern(string pattern) =>
+            _result = await _path.Files(pattern, true);
 
-        public void select_files_with_extensions(params string[] extensions)
-            => _result = _path.Files("*", true)
+        public async ValueTask select_files_with_extensions(params string[] extensions) =>
+            _result = await _path
+                .Files("*", true)
                 .WhereExtensionIs(extensions.Select(s => s.Trim()).ToArray());
 
-        public void select_file_system_entries() => _result = _path.FileSystemEntries();
+        public async ValueTask select_file_system_entries() =>
+            _result = await _path.FileSystemEntries();
 
-        public void search_for_file_system_entries_with_an_a_in_the_name()
-            => _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1);
+        public async ValueTask search_for_file_system_entries_with_an_a_in_the_name() =>
+            _result = await _path.FileSystemEntries(async f => (await f.FileName()).IndexOf('a') != -1);
 
-        public void search_for_deep_file_system_entries_with_an_a_in_the_name()
-            => _result = _path.FileSystemEntries(f => f.FileName.IndexOf('a') != -1, true);
+        public async ValueTask search_for_deep_file_system_entries_with_an_a_in_the_name() =>
+            _result = await _path.FileSystemEntries(async f => (await f.FileName()).IndexOf('a') != -1, true);
 
-        public void search_for_deep_file_system_entries_using_the_pattern(string pattern)
-            => _result = _path.FileSystemEntries(pattern, true);
-
+        public async ValueTask search_for_deep_file_system_entries_using_the_pattern(string pattern) =>
+            _result = await _path.FileSystemEntries(pattern, true);
 
         public class I_set_attributes_result
         {
@@ -152,11 +158,11 @@ namespace FluentPathSpec
                 _attributes = attributeNames;
             }
 
-            public void on(string path)
+            public async ValueTask on(string path)
             {
                 SystemIO.FileAttributes attributes =
                     _attributes.Aggregate((a, b) => a | b);
-                _path.CombineWithWindowsPath(path).Attributes(attributes);
+                await _path.CombineWithWindowsPath(path).Attributes(attributes);
             }
         }
 
@@ -174,8 +180,8 @@ namespace FluentPathSpec
                 _typeOfTimeEvent = typeOfTimeEvent;
             }
 
-            public I_set_time_of_result_to_result to(DateTime date)
-                => new I_set_time_of_result_to_result(_path, _typeOfTimeEvent, date);
+            public I_set_time_of_result_to_result to(DateTime date) =>
+                new I_set_time_of_result_to_result(_path, _typeOfTimeEvent, date);
         }
 
         public class I_set_time_of_result_to_result
@@ -191,35 +197,35 @@ namespace FluentPathSpec
                 _date = date;
             }
 
-            public void on(string path)
+            public async ValueTask on(string path)
             {
-                Path combinedPath = _path.CombineWithWindowsPath(path);
+                Path combinedPath = await _path.CombineWithWindowsPath(path);
                 switch (_typeOfTimeEvent)
                 {
                     case type_of_time_event.creation:
-                        combinedPath.CreationTime(_date);
+                        await combinedPath.CreationTime(_date);
                         break;
                     case type_of_time_event.UTC_creation:
-                        combinedPath.CreationTimeUtc(_date);
+                        await combinedPath.CreationTimeUtc(_date);
                         break;
                     case type_of_time_event.last_access:
-                        combinedPath.LastAccessTime(_date);
+                        await combinedPath.LastAccessTime(_date);
                         break;
                     case type_of_time_event.UTC_last_access:
-                        combinedPath.LastAccessTimeUtc(_date);
+                        await combinedPath.LastAccessTimeUtc(_date);
                         break;
                     case type_of_time_event.last_write:
-                        combinedPath.LastWriteTime(_date);
+                        await combinedPath.LastWriteTime(_date);
                         break;
                     case type_of_time_event.UTC_last_write:
-                        combinedPath.LastWriteTimeUtc(_date);
+                        await combinedPath.LastWriteTimeUtc(_date);
                         break;
                 }
             }
         }
 
-        public I_set_time_of_result set_time_of(type_of_time_event type)
-            => new I_set_time_of_result(_path, type);
+        public I_set_time_of_result set_time_of(type_of_time_event type) =>
+            new I_set_time_of_result(_path, type);
 
         public class I_copy_from_result
         {
@@ -232,14 +238,15 @@ namespace FluentPathSpec
                 _from = from;
             }
 
-            public async Task to(string to)
+            public async ValueTask to(string to)
             {
-                Path src = _path.Combine(_from);
-                await src.Copy(_path.CombineWithWindowsPath(to));
+                Path src = await _path.Combine(_from);
+                await src.Copy(await _path.CombineWithWindowsPath(to));
             }
         }
 
-        public I_copy_from_result copy_from(string from) => new I_copy_from_result(_path, from);
+        public I_copy_from_result copy_from(string from) =>
+            new I_copy_from_result(_path, from);
 
 
         public class I_use_overwrite_mode_result
@@ -253,8 +260,8 @@ namespace FluentPathSpec
                 _overwrite = overwrite;
             }
 
-            public to_copy_from_result to_copy_from(string from)
-                => new to_copy_from_result(_that, _overwrite, from);
+            public to_copy_from_result to_copy_from(string from) =>
+                new to_copy_from_result(_that, _overwrite, from);
         }
 
         public class to_copy_from_result
@@ -270,14 +277,14 @@ namespace FluentPathSpec
                 _from = from;
             }
 
-            public void to(string to)
+            public async ValueTask to(string to)
             {
-                Path src = _that._path.Combine(_from);
+                Path src = await _that._path.Combine(_from);
                 if (_overwrite == Overwrite.Throw)
                 {
                     try
                     {
-                        src.Copy(_that._path.CombineWithWindowsPath(to), _overwrite);
+                        await src.Copy(_that._path.CombineWithWindowsPath(to), _overwrite);
                     }
                     catch (Exception e)
                     {
@@ -286,7 +293,7 @@ namespace FluentPathSpec
                 }
                 else
                 {
-                    src.Copy(_that._path.CombineWithWindowsPath(to), _overwrite);
+                    await src.Copy(_that._path.CombineWithWindowsPath(to), _overwrite);
                 }
             }
         }
@@ -305,16 +312,19 @@ namespace FluentPathSpec
                 _relativePath = relativePath;
             }
 
-            public void with_a_doubled_filename()
+            public async ValueTask with_a_doubled_filename()
             {
-                _that._result = _that._path.CombineWithWindowsPath(_relativePath)
+                _that._result = await _that._path
+                    .CombineWithWindowsPath(_relativePath)
                     .Copy(
-                        p => p.Parent().Combine(
-                            p.FileNameWithoutExtension + p.FileNameWithoutExtension + p.Extension));
+                        async p => await p.Parent().Combine(
+                            await p.FileNameWithoutExtension() +
+                            await p.FileNameWithoutExtension() +
+                            await p.Extension()));
             }
         }
-        public I_copy_result copy(string path) => new I_copy_result(this, path);
-
+        public I_copy_result copy(string path) =>
+            new I_copy_result(this, path);
 
         public class I_make_a_deep_copy_from_result
         {
@@ -327,15 +337,15 @@ namespace FluentPathSpec
                 _from = from;
             }
 
-            public void to(string to)
+            public async ValueTask to(string to)
             {
-                Path src = _path.Combine(_from);
-                src.Copy(_path.CombineWithWindowsPath(to), Overwrite.Never, true);
+                Path src = await _path.Combine(_from);
+                await src.Copy(await _path.CombineWithWindowsPath(to), Overwrite.Never, true);
             }
         }
 
-        public I_make_a_deep_copy_from_result make_a_deep_copy_from(string from)
-            => new I_make_a_deep_copy_from_result(_path, from);
+        public I_make_a_deep_copy_from_result make_a_deep_copy_from(string from) =>
+            new I_make_a_deep_copy_from_result(_path, from);
 
         public class I_move_from_result
         {
@@ -348,15 +358,15 @@ namespace FluentPathSpec
                 _from = from;
             }
 
-            public void to(string to)
+            public async ValueTask to(string to)
             {
-                Path src = _that._path.Combine(_from);
-                src.Move((string)_that._path.CombineWithWindowsPath(to));
+                Path src = await _that._path.Combine(_from);
+                await src.Move((string) await _that._path.CombineWithWindowsPath(to));
             }
         }
 
-        public I_move_from_result move_from(string from)
-            => new I_move_from_result(this, from);
+        public I_move_from_result move_from(string from) =>
+            new I_move_from_result(this, from);
 
         public class I_use_overwrite_mode_to_move_result
         {
@@ -369,8 +379,8 @@ namespace FluentPathSpec
                 _overwrite = overwrite;
             }
 
-            public to_move_from_result from(string from)
-                => new to_move_from_result(_that, _overwrite, from);
+            public to_move_from_result from(string from) =>
+                new to_move_from_result(_that, _overwrite, from);
         }
 
         public class to_move_from_result
@@ -386,15 +396,15 @@ namespace FluentPathSpec
                 _from = from;
             }
 
-            public void to(string to)
+            public async ValueTask to(string to)
             {
-                Path src = _that._path.Combine(_from);
-                Path dest = _that._path.CombineWithWindowsPath(to);
+                Path src = await _that._path.Combine(_from);
+                Path dest = await _that._path.CombineWithWindowsPath(to);
                 if (_overwrite == Overwrite.Throw)
                 {
                     try
                     {
-                        src.Move((string)dest, _overwrite);
+                        await src.Move((string)dest, _overwrite);
                     }
                     catch(Exception e)
                     {
@@ -403,29 +413,30 @@ namespace FluentPathSpec
                 }
                 else
                 {
-                    src.Move((string)dest, _overwrite);
+                    await src.Move((string)dest, _overwrite);
                 }
             }
         }
 
-        public I_use_overwrite_mode_to_move_result move_using_overwrite_mode(Overwrite overwrite)
-            => new I_use_overwrite_mode_to_move_result(this, overwrite);
+        public I_use_overwrite_mode_to_move_result move_using_overwrite_mode(Overwrite overwrite) =>
+            new I_use_overwrite_mode_to_move_result(this, overwrite);
 
-        public void move_while_doubling_the_filename(string relativePath)
-            => _path
+        public async ValueTask move_while_doubling_the_filename(string relativePath) =>
+            await _path
                 .CombineWithWindowsPath(relativePath)
                 .Move(
-                    p => p.Parent().Combine(
-                        p.FileNameWithoutExtension + p.FileNameWithoutExtension +
-                        p.Extension));
+                    async p => await p.Parent().Combine(
+                        await p.FileNameWithoutExtension() +
+                        await p.FileNameWithoutExtension() +
+                        await p.Extension()));
 
-        public void open_and_read(string relativePath)
-            => _path
+        public async ValueTask open_and_read(string relativePath) =>
+            await _path
                 .CombineWithWindowsPath(relativePath)
-                .Open(s =>
+                .Open(async s =>
                 {
                     using var reader = new SystemIO.StreamReader(s);
-                    _resultString = reader.ReadToEnd();
+                    _resultString = await reader.ReadToEndAsync();
                 });
 
         public class I_write_back_to_result
@@ -439,17 +450,17 @@ namespace FluentPathSpec
                 _relativePath = relativePath;
             }
 
-            public void its_uppercased_content_and_append_some_constant_and_the_filename()
-                => _that._path
+            public async ValueTask its_uppercased_content_and_append_some_constant_and_the_filename() =>
+                await _that._path
                     .CombineWithWindowsPath(_relativePath)
-                    .Process((p, s) => s.ToUpperInvariant() + " - processed " + p.FileName);
+                    .Process(async (p, s) => s.ToUpperInvariant() + " - processed " + await p.FileName());
         }
 
-        public I_write_back_to_result write_back_to(string relativePath)
-            => new I_write_back_to_result(this, relativePath);
+        public I_write_back_to_result write_back_to(string relativePath) =>
+            new I_write_back_to_result(this, relativePath);
 
-        public void append_processed_to_the_uppercased_content_of(string relativePath)
-            => _path
+        public async ValueTask append_processed_to_the_uppercased_content_of(string relativePath) =>
+            await _path
                 .CombineWithWindowsPath(relativePath)
                 .Process(s => s.ToUpperInvariant() + " - processed");
 
@@ -464,13 +475,14 @@ namespace FluentPathSpec
                 _text = text;
             }
 
-            public void to(string relativePath)
-                => _that._path
+            public async ValueTask to(string relativePath) =>
+                await _that._path
                     .CombineWithWindowsPath(relativePath)
                     .Write(_text, true);
         }
 
-        public I_append_result append(string text) => new I_append_result(this, text);
+        public I_append_result append(string text) =>
+            new I_append_result(this, text);
 
         public class I_use_encoding
         {
@@ -483,8 +495,8 @@ namespace FluentPathSpec
                 _encoding = encoding;
             }
 
-            public I_append_result_to_write_result to_write(string content)
-                => new I_append_result_to_write_result(_path, _encoding, content);
+            public I_append_result_to_write_result to_write(string content) =>
+                new I_append_result_to_write_result(_path, _encoding, content);
         }
 
         public class I_append_result_to_write_result
@@ -500,12 +512,14 @@ namespace FluentPathSpec
                 _content = content;
             }
 
-            public void to(string relativePath)
-                => _path.CombineWithWindowsPath(relativePath).Write(_content, _encoding, true);
+            public async ValueTask to(string relativePath) =>
+                await _path
+                    .CombineWithWindowsPath(relativePath)
+                    .Write(_content, _encoding, true);
         }
 
-        public I_use_encoding use_encoding(Encoding encoding)
-            => new I_use_encoding(_path, encoding);
+        public I_use_encoding use_encoding(Encoding encoding) =>
+            new I_use_encoding(_path, encoding);
 
         public class I_replace_result
         {
@@ -518,15 +532,17 @@ namespace FluentPathSpec
                 _relativePath = relativePath;
             }
 
-            public void with(string text)
-                => _that._path.CombineWithWindowsPath(_relativePath).Write(text);
+            public async ValueTask with(string text) =>
+                await _that._path
+                    .CombineWithWindowsPath(_relativePath)
+                    .Write(text);
         }
 
-        public I_replace_result replace_the_text_of(string relativePath)
-            => new I_replace_result(this, relativePath);
+        public I_replace_result replace_the_text_of(string relativePath) =>
+            new I_replace_result(this, relativePath);
 
-        public void process_the_binary_content_of(string relativePath)
-            => _path
+        public async ValueTask process_the_binary_content_of(string relativePath) =>
+            await _path
                 .CombineWithWindowsPath(relativePath)
                 .Process(
                     ba =>
@@ -539,67 +555,75 @@ namespace FluentPathSpec
                     }
                 );
 
-        public void process_the_binary_content_and_path_of(string relativePath)
-            => _path.CombineWithWindowsPath(relativePath)
+        public async ValueTask process_the_binary_content_and_path_of(string relativePath) =>
+            await _path
+                .CombineWithWindowsPath(relativePath)
                 .Process(
-                    (p, ba) =>
+                    async (p, ba) =>
                     {
                         for (var i = 0; i < ba.Length; i++)
                         {
                             ba[i] ^= 0xFF;
                         }
-                        _resultString = p.FileName;
+                        _resultString = await p.FileName();
                         return ba;
                     }
                 );
 
-        public void get_the_path_for(string path) => _path = _path.CombineWithWindowsPath(path);
+        public async ValueTask get_the_path_for(string path) =>
+            _path = await _path.CombineWithWindowsPath(path);
 
-        public void create_that_directory() => _path.CreateDirectory();
+        public async ValueTask create_that_directory() =>
+            await _path.CreateDirectory();
 
-        public void create_a_directory_with_relative_path(string relativePath)
-            => Path.CreateDirectory(_path.CombineWithWindowsPath(relativePath).FullPath);
+        public async ValueTask create_a_directory_with_relative_path(string relativePath) =>
+            await Path.CreateDirectory(await _path.CombineWithWindowsPath(relativePath).FullPath());
 
-        public void use_a_stream_to_concatenate_the_contents_of(params string[] filePaths)
+        public async ValueTask use_a_stream_to_concatenate_the_contents_of(params string[] filePaths)
         {
-            Path files = _path.CombineWithWindowsPaths(filePaths);
-            files.Open(
-                s =>
+            Path files = await _path.CombineWithWindowsPaths(filePaths);
+            await files.Open(
+                async s =>
                 {
                     using var reader = new SystemIO.StreamReader(s);
-                    _resultString += reader.ReadToEnd();
+                    _resultString += await reader.ReadToEndAsync();
                 });
         }
 
-        public void use_a_stream_to_read_path_and_content_for_each_of(params string[] filePaths)
+        public async ValueTask use_a_stream_to_read_path_and_content_for_each_of(params string[] filePaths)
         {
-            Path files = _path.CombineWithWindowsPaths(filePaths);
-            files.Open(
-                (s, p) =>
+            Path files = await _path.CombineWithWindowsPaths(filePaths);
+            await files.Open(
+                async (s, p) =>
                 {
                     using var reader = new SystemIO.StreamReader(s);
-                    _resultString += p.MakeRelativeTo(_path).ToWindowsPath() + ":" + reader.ReadToEnd();
+                    _resultString +=
+                        await p.MakeRelativeTo(_path).ToWindowsPath() +
+                        ":" +
+                        await reader.ReadToEndAsync();
                 });
         }
 
-        public void concatenate_the_contents_of(params string[] filePaths)
+        public async ValueTask concatenate_the_contents_of(params string[] filePaths)
         {
-            Path files = _path.CombineWithWindowsPaths(filePaths);
-            files.Read(s => { _resultString += s; });
+            Path files = await _path.CombineWithWindowsPaths(filePaths);
+            await files.Read(s => { _resultString += s; });
         }
 
-        public void read_path_and_content_for_each_of(params string[] filePaths)
+        public async ValueTask read_path_and_content_for_each_of(params string[] filePaths)
         {
-            Path files = _path.CombineWithWindowsPaths(filePaths);
-            files.Read((s, p) => _resultString += p.MakeRelativeTo(_path).ToWindowsPath() + ":" + s);
+            Path files = await _path.CombineWithWindowsPaths(filePaths);
+            await files.Read(async (s, p) => _resultString +=
+            await p.MakeRelativeTo(_path).ToWindowsPath() + ":" + s);
         }
 
-        public void use_a_lambda_to_create_directories_with_the_same_names_as_each_file_under(string relativePath)
+        public async ValueTask use_a_lambda_to_create_directories_with_the_same_names_as_each_file_under(string relativePath)
         {
-            _result = _path
-                   .CombineWithWindowsPath(relativePath)
-                   .AllFiles()
-                   .CreateDirectories(p => _testRoot.Combine(p.FileNameWithoutExtension));
+            _result = await _path
+                .CombineWithWindowsPath(relativePath)
+                .AllFiles()
+                .CreateDirectories(async p =>
+                    await _testRoot.Combine(await p.FileNameWithoutExtension()));
             // DumpTestDirectoryStructure();
         }
 
@@ -614,16 +638,20 @@ namespace FluentPathSpec
                 _subdirectoryName = subdirectoryName;
             }
 
-            public void under(string relativePath)
-                => _that._path.CombineWithWindowsPath(relativePath).CreateSubDirectory(_subdirectoryName);
+            public async ValueTask under(string relativePath) =>
+                await _that._path
+                    .CombineWithWindowsPath(relativePath)
+                    .CreateSubDirectory(_subdirectoryName);
 
-            public void under(params string[] targetDirectoryNames)
-                => new Path(targetDirectoryNames.Select(dir => _that._testRoot.Combine(dir)))
+            public async ValueTask under(params string[] targetDirectoryNames) =>
+                await new Path(targetDirectoryNames
+                    .ToAsyncEnumerable()
+                    .Select(async dir => await _that._testRoot.Combine(dir).FirstPath()), _that._testRoot)
                     .CreateDirectories(_subdirectoryName);
         }
 
-        public I_create_a_subdirectory_with_name_result create_a_subdirectory_with_name(string subdirectoryName)
-            => new I_create_a_subdirectory_with_name_result(this, subdirectoryName);
+        public I_create_a_subdirectory_with_name_result create_a_subdirectory_with_name(string subdirectoryName) =>
+            new I_create_a_subdirectory_with_name_result(this, subdirectoryName);
 
 
         public class I_create_a_file_result
@@ -637,21 +665,21 @@ namespace FluentPathSpec
                 _relativePath = relativePath;
             }
 
-            public void with_content(string content)
-                => _that._path.CreateFiles(
-                    p => _relativePath.ToCrossPlatformPath(),
+            public async ValueTask with_content(string content) =>
+                await _that._path.CreateFiles(
+                    async p => await _relativePath.ToCrossPlatformPath(),
                     p => content);
 
-            public void with_binary_content(string hexContent)
+            public async ValueTask with_binary_content(string hexContent)
             {
                 byte[] content = hexContent.ToBytes();
-                _that._path.CreateFiles(
-                    p => _relativePath.ToCrossPlatformPath(),
+                await _that._path.CreateFiles(
+                    async p => await _relativePath.ToCrossPlatformPath(),
                     p => content);
             }
 
-            public I_create_file_with_encoding_result and_use_encoding(Encoding encoding)
-                => new I_create_file_with_encoding_result(_that, _relativePath, encoding);
+            public I_create_file_with_encoding_result and_use_encoding(Encoding encoding) =>
+                new I_create_file_with_encoding_result(_that, _relativePath, encoding);
         }
 
         public class I_create_file_with_encoding_result
@@ -670,9 +698,9 @@ namespace FluentPathSpec
                 _encoding = encoding;
             }
 
-            public void with_content(string content)
-                => _that._path.CreateFiles(
-                    p => _relativePath.ToCrossPlatformPath(),
+            public async ValueTask with_content(string content) =>
+                await _that._path.CreateFiles(
+                    async p => await _relativePath.ToCrossPlatformPath(),
                     p => content,
                     _encoding);
         }
@@ -691,42 +719,41 @@ namespace FluentPathSpec
                 _relativePath = relativePath;
             }
 
-            public void to(string newExtension)
+            public async ValueTask to(string newExtension)
             {
-                Path oldPath = _that._path.CombineWithWindowsPath(_relativePath);
-                oldPath.Move(p => p.ChangeExtension(newExtension));
+                Path oldPath = await _that._path.CombineWithWindowsPath(_relativePath);
+                await oldPath.Move(async p => await p.ChangeExtension(newExtension));
             }
         }
 
-        public I_change_the_extension_result change_the_extension_of(string relativePath)
-            => new I_change_the_extension_result(this, relativePath);
+        public I_change_the_extension_result change_the_extension_of(string relativePath) =>
+            new I_change_the_extension_result(this, relativePath);
 
-        public void delete(string relativePath)
-            => _path.CombineWithWindowsPath(relativePath).Delete();
+        public async ValueTask delete(string relativePath) =>
+            await _path.CombineWithWindowsPath(relativePath).Delete();
 
-        public void recursively_delete(string relativePath)
-            => _path.CombineWithWindowsPath(relativePath).Delete(true);
+        public async ValueTask recursively_delete(string relativePath) =>
+            await _path.CombineWithWindowsPath(relativePath).Delete(true);
 
-        public void decrypt(string relativePath)
-            => _path.CombineWithWindowsPath(relativePath).Decrypt();
+        public async ValueTask decrypt(string relativePath) =>
+            await _path.CombineWithWindowsPath(relativePath).Decrypt();
 
-        public void encrypt(string relativePath)
-            => _path.CombineWithWindowsPath(relativePath).Encrypt();
+        public async ValueTask encrypt(string relativePath) =>
+            await _path.CombineWithWindowsPath(relativePath).Encrypt();
 
-        public void enumerate_directories_twice()
+        public async ValueTask enumerate_directories_twice()
         {
-            Path dirs = _path.Directories();
-            IEnumerator<Path> dirEnum = dirs.GetEnumerator();
+            Path dirs = await _path.Directories();
+            IAsyncEnumerator<Path> dirEnum = dirs.GetAsyncEnumerator();
             var dirList = new List<string>();
-            while (dirEnum.MoveNext())
+            while (await dirEnum.MoveNextAsync())
             {
-                dirList.Add(dirEnum.Current.FileName);
+                dirList.Add(await dirEnum.Current.FileName());
             }
-            dirEnum = dirs.GetEnumerator();
-            var dirEnumNonGeneric = (IEnumerator)dirEnum;
-            while (dirEnumNonGeneric.MoveNext())
+            dirEnum = dirs.GetAsyncEnumerator();
+            while (await dirEnum.MoveNextAsync())
             {
-                dirList.Add(((Path)dirEnumNonGeneric.Current).FileName);
+                dirList.Add(await dirEnum.Current.FileName());
             }
             dirList.Sort();
             _resultString = String.Join(", ", dirList.ToArray());
@@ -1154,8 +1181,8 @@ namespace FluentPathSpec
             => new Path(relativePaths.Select(p => path.CombineWithWindowsPath(p)));
 
 
-        public static string ToWindowsPath(this Path path)
-            => path.ToString().Replace(SystemIO.Path.DirectorySeparatorChar, '\\');
+        public static async ValueTask<string> ToWindowsPath(this Path path)
+            => (await path.FirstPath()).Replace(SystemIO.Path.DirectorySeparatorChar, '\\');
 
         public static byte[] ToBytes(this string hexContent)
         {
