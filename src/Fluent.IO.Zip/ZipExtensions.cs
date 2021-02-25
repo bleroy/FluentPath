@@ -229,7 +229,7 @@ namespace Fluent.IO.Async.Zip
             return output.ToArray();
         }
 
-        private static async ValueTask ZipToStream(
+        public static async ValueTask ZipToStream(
             Path zipPaths,
             Func<string, Stream> zipPathToContent,
             Stream output)
