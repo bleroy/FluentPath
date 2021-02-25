@@ -4,11 +4,12 @@
 
 using System;
 using System.Linq;
-using Fluent.IO;
+using System.Threading.Tasks;
+using Fluent.IO.Async;
 
 namespace PutMoviesInFolders {
     class Program {
-        static void Main(string[] args) {
+        static async ValueTask Main(string[] args) {
             if (args.Length == 1 && (
                 args[0] == "help" ||
                 args[0] == "/?" ||
@@ -20,20 +21,20 @@ putmoviesinfolders [path]
 where [path] is the path of the folder to process.");
                 return;
             }
-            Path.FromTokens(args.Length != 0 ? args[0] : ".")
+            await Path.FromTokens(args.Length != 0 ? args[0] : ".")
                 .Files(
-                    p => new[] {
+                    async p => new[] {
                         ".avi", ".m4v", ".wmv",
                         ".mp4", ".dvr-ms", ".mpg", ".mkv"
-                    }.Contains(p.Extension))
+                    }.Contains(await p.Extension()))
                 .CreateDirectories(
-                    p => p.Parent()
-                          .Combine(p.FileNameWithoutExtension))
+                    async p => await p.Parent()
+                          .Combine(await p.FileNameWithoutExtension()))
                 .End()
                 .Move(
-                    p => p.Parent()
-                          .Combine(p.FileNameWithoutExtension)
-                          .Combine(p.FileName));
+                    async p => await p.Parent()
+                          .Combine(await p.FileNameWithoutExtension())
+                          .Combine(await p.FileName()));
         }
     }
 }
