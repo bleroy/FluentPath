@@ -779,6 +779,33 @@ namespace Fluent.IO.Async
         }
 
         /// <summary>
+        /// Creates subdirectories for each directory.
+        /// </summary>
+        /// <param name="directoryNameGenerator">
+        /// A function that returns the new directory name for each path.
+        /// If the function returns null, no directory is created.
+        /// </param>
+        /// <returns>The set</returns>
+        public Path CreateDirectories(Func<Path, ValueTask<Path>> directoryNameGenerator)
+        {
+            return new Path(CreateDirectoriesImpl(Paths), this);
+
+            async IAsyncEnumerable<string> CreateDirectoriesImpl(IAsyncEnumerable<string> paths)
+            {
+                await foreach (string dirPath in paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                {
+                    Path newDirectories = await directoryNameGenerator(new Path(dirPath, this));
+                    if (newDirectories is null) yield break;
+                    await foreach (string pathString in newDirectories.Paths.WithCancellation(CancellationToken).ConfigureAwait(false))
+                    {
+                        Directory.CreateDirectory(pathString);
+                        yield return pathString;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Creates directories for each path in the set.
         /// </summary>
         /// <returns>The set</returns>

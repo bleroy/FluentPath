@@ -4,11 +4,12 @@
 
 using Cornichon;
 using System;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace FluentPathSpec
 {
-    public class PathExploration : IDisposable
+    public class PathExploration : IAsyncDisposable
     {
         // Prepare some vocabulary
         private FluentPathSpec I { get; } = new FluentPathSpec();
@@ -16,7 +17,7 @@ namespace FluentPathSpec
         private FluentPathSpec the => I;
         private FluentPathSpec it => I;
 
-        public void Dispose() => I.cleanup_test_files();
+        public async ValueTask DisposeAsync() => await I.cleanup_test_files();
 
         [Fact]
         public void DirectoriesAndFilesExist()

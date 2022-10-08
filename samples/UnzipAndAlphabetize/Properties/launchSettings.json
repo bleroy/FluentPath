@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "UnzipAndAlphabetize": {
+      "commandName": "Project",
+      "commandLineArgs": "c:\\temp\\foo"
+    }
+  }
+}

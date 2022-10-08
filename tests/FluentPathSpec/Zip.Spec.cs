@@ -3,6 +3,7 @@
 // MIT License http://opensource.org/licenses/MIT
 
 using Cornichon;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace FluentPathSpec
@@ -15,21 +16,21 @@ namespace FluentPathSpec
         private FluentPathSpec the => I;
 
         [Fact]
-        public void ZipAndUnzipAFolder()
+        public async ValueTask ZipAndUnzipAFolder()
         {
-            Scenario
+            await Scenario
                 .Given(I.start_with_a_clean_directory)
                 .When(() => I.zip("bar").to("archive.zip"))
                  .And(() => I.unzip("archive.zip").to("unzip"))
                 .Then(() => the.content_of("bar").should_be_identical_to_the_content_of("unzip"))
                  .And(() => there.should_be_an_entry_under(@"archive.zip"));
-            I.cleanup_test_files();
+            await I.cleanup_test_files();
         }
 
-        //[Fact]
-        //public void ZipAndUnzipInMemory()
-        //    => Scenario
-        //        .Given(() => I.zip_in_memory("zipped content").to(@"foo\bar.txt"))
-        //        .Then(() => the.zip_contains(path: @"foo\bar.txt", content: "zipped content"));
+        [Fact]
+        public async ValueTask ZipAndUnzipInMemory()
+            => await Scenario
+                .Given(() => I.zip_in_memory("zipped content").to(@"foo\bar.txt"))
+                .Then(() => the.zip_contains(path: @"foo\bar.txt", content: "zipped content"));
     }
 }

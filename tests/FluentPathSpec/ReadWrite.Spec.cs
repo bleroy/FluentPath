@@ -5,13 +5,14 @@
 using Cornichon;
 using System;
 using System.Text;
+using System.Threading.Tasks;
 using Xunit;
 using static System.IO.FileAttributes;
 using static FluentPathSpec.type_of_time_event;
 
 namespace FluentPathSpec
 {
-    public class ReadWriteSpec : IDisposable
+    public class ReadWriteSpec : IAsyncDisposable
     {
         // Prepare some vocabulary
         private FluentPathSpec I { get; } = new FluentPathSpec();
@@ -19,7 +20,7 @@ namespace FluentPathSpec
         private FluentPathSpec the => I;
         private FluentPathSpec it => I;
 
-        public void Dispose() => I.cleanup_test_files();
+        public async ValueTask DisposeAsync() => await I .cleanup_test_files();
 
         [Fact]
         public void ReadATextFile()

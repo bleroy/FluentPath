@@ -8,8 +8,8 @@ using System.Threading.Tasks;
 using Fluent.IO.Async;
 
 namespace PutMoviesInFolders {
-    class Program {
-        static async ValueTask Main(string[] args) {
+    public class Program {
+        public static async Task Main(string[] args) {
             if (args.Length == 1 && (
                 args[0] == "help" ||
                 args[0] == "/?" ||

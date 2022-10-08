@@ -147,13 +147,17 @@ namespace Fluent.IO.Async.Windows
                 {
                     if (Directory.Exists(p))
                     {
-                        new DirectoryInfo(p).SetAccessControl(
-                            securityFunction(new Path(p, path)) as DirectorySecurity);
+                        if (securityFunction(new Path(p, path)) is DirectorySecurity dirSecurity)
+                        {
+                            new DirectoryInfo(p).SetAccessControl(dirSecurity);
+                        }
                     }
                     else
                     {
-                        new FileInfo(p).SetAccessControl(
-                            securityFunction(new Path(p, path)) as FileSecurity);
+                        if (securityFunction(new Path(p, path)) is FileSecurity fileSecurity)
+                        {
+                            new FileInfo(p).SetAccessControl(fileSecurity);
+                        }
                     }
                     yield return p;
                 }
@@ -177,13 +181,17 @@ namespace Fluent.IO.Async.Windows
                 {
                     if (Directory.Exists(p))
                     {
-                        new DirectoryInfo(p).SetAccessControl(
-                            await securityFunction(new Path(p, path)) as DirectorySecurity);
+                        if (await securityFunction(new Path(p, path)) is DirectorySecurity dirSecurity)
+                        {
+                            new DirectoryInfo(p).SetAccessControl(dirSecurity);
+                        }
                     }
                     else
                     {
-                        new FileInfo(p).SetAccessControl(
-                            await securityFunction(new Path(p, path)) as FileSecurity);
+                        if (await securityFunction(new Path(p, path)) is FileSecurity fileSecurity)
+                        {
+                            new FileInfo(p).SetAccessControl(fileSecurity);
+                        }
                     }
                     yield return p;
                 }

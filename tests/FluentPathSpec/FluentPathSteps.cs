@@ -28,7 +28,16 @@ namespace FluentPathSpec
         private Path _result;
         private string _resultString;
         private byte[] _zipped;
-        private Exception _exception;
+        private Exception? _exception;
+
+        public FluentPathSpec()
+        {
+            _testRoot = Path.Empty;
+            _path = Path.Empty;
+            _result = Path.Empty;
+            _resultString = "";
+            _zipped = Array.Empty<byte>();
+        }
 
         public async ValueTask start_with_a_clean_directory()
         {
@@ -69,7 +78,7 @@ namespace FluentPathSpec
             await _testRoot.Delete(true);
         }
 
-        public async ValueTask DumpTestDirectoryStructure(Path path = null, int tab = 0)
+        public async ValueTask DumpTestDirectoryStructure(Path? path = null, int tab = 0)
         {
             if (path is null) path = _testRoot;
             string indent = new String(' ', tab);
@@ -86,7 +95,8 @@ namespace FluentPathSpec
 
         public async ValueTask add_permissions_to(string path)
         {
-            SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
+            SecurityIdentifier? user = WindowsIdentity.GetCurrent().User;
+            if (user is null) throw new InvalidOperationException("Current user should not be null.");
             Path filePath = _path.CombineWithWindowsPath(path);
             FileSystemSecurity accessControl = await filePath.AccessControl();
             accessControl.AddAccessRule(
@@ -316,8 +326,7 @@ namespace FluentPathSpec
             {
                 _that._result = await _that._path
                     .CombineWithWindowsPath(_relativePath)
-                    .Copy(
-                        async p => await p.Parent().Combine(
+                    .Copy(async p => await p.Parent().Combine(
                             await p.FileNameWithoutExtension() +
                             await p.FileNameWithoutExtension() +
                             await p.Extension()));
@@ -667,14 +676,14 @@ namespace FluentPathSpec
 
             public async ValueTask with_content(string content) =>
                 await _that._path.CreateFiles(
-                    async p => await _relativePath.ToCrossPlatformPath(),
+                    p => _relativePath.ToCrossPlatformPath(),
                     p => content);
 
             public async ValueTask with_binary_content(string hexContent)
             {
                 byte[] content = hexContent.ToBytes();
                 await _that._path.CreateFiles(
-                    async p => await _relativePath.ToCrossPlatformPath(),
+                    p => _relativePath.ToCrossPlatformPath(),
                     p => content);
             }
 
@@ -698,11 +707,13 @@ namespace FluentPathSpec
                 _encoding = encoding;
             }
 
-            public async ValueTask with_content(string content) =>
+            public async ValueTask with_content(string content)
+            {
                 await _that._path.CreateFiles(
-                    async p => await _relativePath.ToCrossPlatformPath(),
+                    p => _relativePath.ToCrossPlatformPath(),
                     p => content,
                     _encoding);
+            }
         }
 
         public I_create_a_file_result create_a_file_under(string relativePath)
@@ -722,7 +733,7 @@ namespace FluentPathSpec
             public async ValueTask to(string newExtension)
             {
                 Path oldPath = await _that._path.CombineWithWindowsPath(_relativePath);
-                await oldPath.Move(async p => await p.ChangeExtension(newExtension));
+                await oldPath.Move(p => p.ChangeExtension(newExtension));
             }
         }
 
@@ -1014,7 +1025,8 @@ namespace FluentPathSpec
 
         public async ValueTask is_an_additional_permission_on(string path)
         {
-            SecurityIdentifier user = WindowsIdentity.GetCurrent().User;
+            SecurityIdentifier? user = WindowsIdentity.GetCurrent().User;
+            if (user is null) throw new InvalidOperationException("Current user should not be null");
             AuthorizationRuleCollection accessRules = (await _path
                 .CombineWithWindowsPath(path)
                 .AccessControl())

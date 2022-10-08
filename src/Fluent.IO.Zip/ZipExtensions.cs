@@ -32,6 +32,30 @@ namespace Fluent.IO.Async.Zip
         /// Unzips all files in the path.
         /// </summary>
         /// <param name="path">The zip files.</param>
+        /// <param name="target">A function that maps the archive's path to a target path.</param>
+        /// <returns>The uncompressed files and folders.</returns>
+        public static Path Unzip(this Path path, Func<Path, Path> target) =>
+            path.Open(async (s, p) =>
+                await target(p).ForEach(async t =>
+                    new ZipArchive(s, ZipArchiveMode.Read)
+                        .ExtractToDirectory(await t.FullPath())));
+
+        /// <summary>
+        /// Unzips all files in the path.
+        /// </summary>
+        /// <param name="path">The zip files.</param>
+        /// <param name="target">A function that maps the archive's path to a target path.</param>
+        /// <returns>The uncompressed files and folders.</returns>
+        public static Path Unzip(this Path path, Func<Path, ValueTask<Path>> target) =>
+            path.Open(async (s, p) =>
+                await (await target(p)).ForEach(async t =>
+                    new ZipArchive(s, ZipArchiveMode.Read)
+                        .ExtractToDirectory(await t.FullPath())));
+
+        /// <summary>
+        /// Unzips all files in the path.
+        /// </summary>
+        /// <param name="path">The zip files.</param>
         /// <param name="unzipAction">An action that handles the unzipping of each file.</param>
         /// <returns>The original path object</returns>
         public static Path Unzip(this Path path, Action<string, Stream> unzipAction) =>

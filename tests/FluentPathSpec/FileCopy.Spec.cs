@@ -10,7 +10,7 @@ using Xunit;
 
 namespace FluentPathSpec
 {
-    public class FileCopySpec : IDisposable
+    public class FileCopySpec : IAsyncDisposable
     {
         // Prepare some vocabulary
         private FluentPathSpec I { get; } = new FluentPathSpec();
@@ -18,7 +18,7 @@ namespace FluentPathSpec
         private FluentPathSpec the => I;
         private FluentPathSpec it => I;
 
-        public void Dispose() => I.cleanup_test_files();
+        public async ValueTask DisposeAsync() => await I.cleanup_test_files();
 
         [Fact]
         public async Task SingleFileCopyToDirectory()
